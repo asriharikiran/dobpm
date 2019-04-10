@@ -1,0 +1,53 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="http://www.activiti.org/processdef" xmlns:modeler="http://activiti.com/modeler" modeler:version="1.0en" modeler:exportDateTime="20190410063814068" modeler:modelId="6006" modeler:modelVersion="2" modeler:modelLastUpdated="1554878095384">
+  <process id="SampleProcess" name="SampleProcess" isExecutable="true">
+    <startEvent id="startEvent1">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[startEvent1]]></modeler:editor-resource-id>
+      </extensionElements>
+    </startEvent>
+    <userTask id="sid-CBA17198-91D1-4EC5-811D-73BE6E269123" name="Sample Task" activiti:assignee="$INITIATOR">
+      <extensionElements>
+        <modeler:allow-send-email><![CDATA[true]]></modeler:allow-send-email>
+        <modeler:activiti-idm-initiator><![CDATA[true]]></modeler:activiti-idm-initiator>
+        <modeler:editor-resource-id><![CDATA[sid-CBA17198-91D1-4EC5-811D-73BE6E269123]]></modeler:editor-resource-id>
+      </extensionElements>
+    </userTask>
+    <sequenceFlow id="sid-85CD2B4B-9EAB-499D-92A8-EFC9C7862203" sourceRef="startEvent1" targetRef="sid-CBA17198-91D1-4EC5-811D-73BE6E269123">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-85CD2B4B-9EAB-499D-92A8-EFC9C7862203]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <endEvent id="sid-48780E05-EBC9-49C3-9EE2-02CE59A70863">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-48780E05-EBC9-49C3-9EE2-02CE59A70863]]></modeler:editor-resource-id>
+      </extensionElements>
+    </endEvent>
+    <sequenceFlow id="sid-3A544D66-EA5B-48F2-B4F3-7CB23C44344C" sourceRef="sid-CBA17198-91D1-4EC5-811D-73BE6E269123" targetRef="sid-48780E05-EBC9-49C3-9EE2-02CE59A70863">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-3A544D66-EA5B-48F2-B4F3-7CB23C44344C]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_SampleProcess">
+    <bpmndi:BPMNPlane bpmnElement="SampleProcess" id="BPMNPlane_SampleProcess">
+      <bpmndi:BPMNShape bpmnElement="startEvent1" id="BPMNShape_startEvent1">
+        <omgdc:Bounds height="30.0" width="30.0" x="100.0" y="163.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-CBA17198-91D1-4EC5-811D-73BE6E269123" id="BPMNShape_sid-CBA17198-91D1-4EC5-811D-73BE6E269123">
+        <omgdc:Bounds height="80.0" width="100.0" x="175.0" y="138.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-48780E05-EBC9-49C3-9EE2-02CE59A70863" id="BPMNShape_sid-48780E05-EBC9-49C3-9EE2-02CE59A70863">
+        <omgdc:Bounds height="28.0" width="28.0" x="320.0" y="164.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="sid-3A544D66-EA5B-48F2-B4F3-7CB23C44344C" id="BPMNEdge_sid-3A544D66-EA5B-48F2-B4F3-7CB23C44344C">
+        <omgdi:waypoint x="275.0" y="178.0"/>
+        <omgdi:waypoint x="320.0" y="178.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-85CD2B4B-9EAB-499D-92A8-EFC9C7862203" id="BPMNEdge_sid-85CD2B4B-9EAB-499D-92A8-EFC9C7862203">
+        <omgdi:waypoint x="130.0" y="178.0"/>
+        <omgdi:waypoint x="175.0" y="178.0"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
