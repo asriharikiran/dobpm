@@ -1,0 +1,1479 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="http://www.activiti.org/processdef" xmlns:modeler="http://activiti.com/modeler" modeler:version="1.0en" modeler:exportDateTime="20190603235236604" modeler:modelId="8037" modeler:modelVersion="3" modeler:modelLastUpdated="1559605687480">
+  <process id="PersonMatchFlow" name="Person Match Flow" isExecutable="true">
+    <documentation>Process to match CP, NCP, child from an external referral source (IBES, CSNET, FACS, etc) to the Hub and Child Support application.  Purpose: To prevent creation of duplicate clients.</documentation>
+    <startEvent id="StartClientMatch" name="Start Client Match">
+      <documentation>Receive data from Interface source (IBES, FACS, CSNET) and begin Matching Clients included in the referral.</documentation>
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[StartClientMatch]]></modeler:editor-resource-id>
+      </extensionElements>
+    </startEvent>
+    <transaction id="MatchCP" name="Match CP">
+      <documentation>Match Applicant to CP.  To match the applicant passed to a known person in Child Support / Hub.</documentation>
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[MatchCP]]></modeler:editor-resource-id>
+      </extensionElements>
+      <callActivity id="MatchCPClient" name="Match CP Client" calledElement="ClientMatchProcessFlow" activiti:inheritVariables="false">
+        <documentation>Look for client in different systems (CS, IBES and ICARE), return Client Found, if not client found, continue flow. 
+
+If Match returns more than 1 result, then present resolution task to user. 
+If Match returns 1 result, then consider match and move to next step in flow. 
+If 0 match returned, then No match found, move to next step in flow.</documentation>
+        <extensionElements>
+          <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+          <activiti:in sourceExpression="CP" target="PERSON_TYPE"/>
+          <activiti:in sourceExpression="0" target="CHILD_INDEX"/>
+          <activiti:in source="STARTED_BY" target="STARTED_BY"/>
+          <activiti:in source="SOURCE" target="SOURCE"/>
+          <activiti:in source="STAGE_ID" target="STAGE_ID"/>
+          <activiti:out source="CLIENT_MATCH_OUTCOME" target="CP_CLIENT_MATCH"/>
+          <activiti:out source="JSON_MATCH_RESULTS_PAYLOAD" target="JSON_MATCH_RESULTS_PAYLOAD"/>
+          <modeler:editor-resource-id><![CDATA[MatchCPClient]]></modeler:editor-resource-id>
+        </extensionElements>
+      </callActivity>
+      <exclusiveGateway id="CP_CINFound" name="CP CIN MatchFound?">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CP_CINFound]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <userTask id="ResolveCPTask" name="Resolve Applicant" activiti:candidateGroups="CASE_OPEN_IBES_REFERRAL" activiti:formKey="/case-open/initiation/cp-resolution" activiti:priority="1">
+        <documentation>This task automatically sets when Nexi is unable to add a new customer or match the requesting person’s information to an existing customer. SRSs review the information received from IBES to determine whether to add a new customer or match the customer to an existing customer.</documentation>
+        <extensionElements>
+          <activiti:taskListener event="create" expression="#{coClientService.setResolutionTask(task, &quot;CP&quot;, referralPropExtractor.getAttributeValue(JSON_PAYLOAD, &quot;/clientAR/personDetails/cin&quot;))}"/>
+          <activiti:taskListener event="create" delegateExpression="${lastCompletedAssigner}"/>
+          <modeler:allow-send-email><![CDATA[true]]></modeler:allow-send-email>
+          <modeler:initiator-can-complete><![CDATA[false]]></modeler:initiator-can-complete>
+          <modeler:editor-resource-id><![CDATA[ResolveCPTask]]></modeler:editor-resource-id>
+        </extensionElements>
+      </userTask>
+      <serviceTask id="CreateCPClient" name="Create New CP Client" activiti:expression="${coClientService.createPerson(execution, &quot;CP&quot;, 0)}">
+        <documentation>Creates a new client via the WS call and sets the CP_CONTACT_UPDATE variable to true.</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CreateCPClient]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <intermediateThrowEvent id="CPClientCreated" name="CP Client Created">
+        <documentation>When a Client is matched to one and only one Child Support ClientID.</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CPClientCreated]]></modeler:editor-resource-id>
+        </extensionElements>
+      </intermediateThrowEvent>
+      <exclusiveGateway id="CPResolutionOutcome" default="sid-FA8C84B9-FCF9-4C3E-9610-4E449CE61C4A">
+        <documentation>The outcome the CS User selects when resolving a Match Person issue.  Outcomes include:
+-Create a New Client
+-Selecting one option presented by the system (Results in Match Client)
+-Searching for an existing Child Support Client and selecting that client (Results in Match Client.)</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CPResolutionOutcome]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <startEvent id="StartCPClientMatch" name="Start CP Client Match">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[StartCPClientMatch]]></modeler:editor-resource-id>
+        </extensionElements>
+      </startEvent>
+      <intermediateThrowEvent id="ExistingCP_CS_ClientMatched" name="Existing CS Client  Matched">
+        <documentation>Indicating that a single CS client was matched based on the CIN Match rules.</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[ExistingCP_CS_ClientMatched]]></modeler:editor-resource-id>
+        </extensionElements>
+      </intermediateThrowEvent>
+      <endEvent id="sid-667BE814-E8DE-408A-9D35-AE0FEF95659A">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-667BE814-E8DE-408A-9D35-AE0FEF95659A]]></modeler:editor-resource-id>
+        </extensionElements>
+      </endEvent>
+      <serviceTask id="CheckForDuplicateCP" name="Check For Duplicate CP" activiti:expression="${coClientService.checkDuplicateClient(execution, &quot;CP&quot;, 0)}">
+        <documentation>Checks if the CP is already known to Child Support</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CheckForDuplicateCP]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <exclusiveGateway id="sid-5AF52186-5B52-4A78-80E6-D379F64414C0" default="sid-324F0892-7FC5-419C-82C2-88AF97568CA0">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-5AF52186-5B52-4A78-80E6-D379F64414C0]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <serviceTask id="Update_CP_Contact_Info" name="Update CP contact info" activiti:expression="${coContactService.save(execution, &quot;CP&quot;)}">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-F562C01D-88C1-4AD5-B3EA-0CCDEE5ACE82]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <exclusiveGateway id="sid-0869F520-2A41-4917-9283-137DE25202B0" default="sid-E98B8333-D5D4-475F-878C-9E1E3CAFD3AE">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-0869F520-2A41-4917-9283-137DE25202B0]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <sequenceFlow id="sid-72100342-4CCD-4FEC-A666-1C71407EA187" sourceRef="CreateCPClient" targetRef="CPClientCreated">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-72100342-4CCD-4FEC-A666-1C71407EA187]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-185F31F8-BBA4-47C7-A622-1A46722DF352" sourceRef="StartCPClientMatch" targetRef="MatchCPClient">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-185F31F8-BBA4-47C7-A622-1A46722DF352]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-A1090AD0-2810-489B-AD87-B2418453A1EF" sourceRef="MatchCPClient" targetRef="CP_CINFound">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-A1090AD0-2810-489B-AD87-B2418453A1EF]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-6831FD87-67D2-45E3-919C-5DDA81DC1B1C" name="0=No match  found" sourceRef="CP_CINFound" targetRef="CreateCPClient">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-6831FD87-67D2-45E3-919C-5DDA81DC1B1C]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"0".equalsIgnoreCase(CP_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-786ECBAF-3B21-4145-8EE8-52BE35AFA417" name="1= 1 Match  Found in CS" sourceRef="CP_CINFound" targetRef="ExistingCP_CS_ClientMatched">
+        <extensionElements>
+          <activiti:executionListener event="take" expression="#{coClientService.setPotentialMatchCin(execution, &quot;CP&quot;)}"/>
+          <modeler:editor-resource-id><![CDATA[sid-786ECBAF-3B21-4145-8EE8-52BE35AFA417]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"1".equalsIgnoreCase(CP_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-668D2C54-E20C-4286-B7E6-49B4F00D4CB2" sourceRef="ResolveCPTask" targetRef="CPResolutionOutcome">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-668D2C54-E20C-4286-B7E6-49B4F00D4CB2]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-FA8C84B9-FCF9-4C3E-9610-4E449CE61C4A" sourceRef="CPResolutionOutcome" targetRef="CheckForDuplicateCP">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-FA8C84B9-FCF9-4C3E-9610-4E449CE61C4A]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-B43F9E0B-7E8F-441A-B06D-E435D4F99F0F" sourceRef="CheckForDuplicateCP" targetRef="sid-5AF52186-5B52-4A78-80E6-D379F64414C0">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-B43F9E0B-7E8F-441A-B06D-E435D4F99F0F]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-6BE39376-0068-4428-B58A-D6DA9C17E0F0" sourceRef="CPResolutionOutcome" targetRef="ExistingCP_CS_ClientMatched">
+        <extensionElements>
+          <activiti:executionListener event="take" expression="${coClientService.resetDuplicateIndicator(execution)}"/>
+          <modeler:editor-resource-id><![CDATA[sid-6BE39376-0068-4428-B58A-D6DA9C17E0F0]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${CP_CLIENT_ID != null}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-96E0C0FA-7784-4D26-BB74-E1C1F21609EB" sourceRef="sid-5AF52186-5B52-4A78-80E6-D379F64414C0" targetRef="CreateCPClient">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-96E0C0FA-7784-4D26-BB74-E1C1F21609EB]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"false".equalsIgnoreCase(DUPLICATE_CLIENT)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-324F0892-7FC5-419C-82C2-88AF97568CA0" name="Duplicate CP Found" sourceRef="sid-5AF52186-5B52-4A78-80E6-D379F64414C0" targetRef="ResolveCPTask">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-324F0892-7FC5-419C-82C2-88AF97568CA0]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-5B7ABAF5-C897-4B72-AC47-CF2BE6DA592F" name="R= Resolution  Required" sourceRef="CP_CINFound" targetRef="ResolveCPTask">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-5B7ABAF5-C897-4B72-AC47-CF2BE6DA592F]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"R".equalsIgnoreCase(CP_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-E99D2497-B4EA-4EE6-BDAB-16648FD1022F" sourceRef="CPClientCreated" targetRef="sid-0869F520-2A41-4917-9283-137DE25202B0">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-E99D2497-B4EA-4EE6-BDAB-16648FD1022F]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-E908F1FD-EB05-4B4F-B09B-21AFB222349B" sourceRef="Update_CP_Contact_Info" targetRef="sid-667BE814-E8DE-408A-9D35-AE0FEF95659A">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-E908F1FD-EB05-4B4F-B09B-21AFB222349B]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-E98B8333-D5D4-475F-878C-9E1E3CAFD3AE" sourceRef="sid-0869F520-2A41-4917-9283-137DE25202B0" targetRef="sid-667BE814-E8DE-408A-9D35-AE0FEF95659A">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-E98B8333-D5D4-475F-878C-9E1E3CAFD3AE]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="Check_CIN_And_Update_Criteria" sourceRef="sid-0869F520-2A41-4917-9283-137DE25202B0" targetRef="Update_CP_Contact_Info">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-C1A52720-B460-42D3-8769-E64DAACF21F4]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${("true".equalsIgnoreCase(CP_CONTACT_UPDATE)) && (CP_CLIENT_ID.equalsIgnoreCase(RFRL_CP_CLIENT_ID))}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-10CC277D-76E0-4D07-901A-49E1F6146B92" sourceRef="ExistingCP_CS_ClientMatched" targetRef="sid-667BE814-E8DE-408A-9D35-AE0FEF95659A">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-10CC277D-76E0-4D07-901A-49E1F6146B92]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <textAnnotation id="sid-9A1E2C96-E975-4396-A992-BD30A65CCBDF">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-9A1E2C96-E975-4396-A992-BD30A65CCBDF]]></modeler:editor-resource-id>
+        </extensionElements>
+        <text>Pull back all known 'person' data elements from payload to Create Peron</text>
+      </textAnnotation>
+      <textAnnotation id="sid-F44EFD36-498F-4786-B39E-F7455E4442EA">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-F44EFD36-498F-4786-B39E-F7455E4442EA]]></modeler:editor-resource-id>
+        </extensionElements>
+        <text>Nexi User can:
+-Select a Presented Client from CS
+-Search Nexi &amp; Select Client, OR
+Select to Create New CS Client  (using IBES Data)</text>
+      </textAnnotation>
+    </transaction>
+    <exclusiveGateway id="sid-678BA41E-C60F-4A16-8C08-D33656029A94">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-678BA41E-C60F-4A16-8C08-D33656029A94]]></modeler:editor-resource-id>
+      </extensionElements>
+    </exclusiveGateway>
+    <serviceTask id="ChildonRequest" name=">0 Child on Request" activiti:expression="${coCaseService.setQualifyingChildren(execution)}">
+      <documentation>Check to verify there is still at least one child present in the referral before continuing.  If all children were removed due to over age or Emancipated, the referral no longer needs to continue.</documentation>
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[ChildonRequest]]></modeler:editor-resource-id>
+      </extensionElements>
+    </serviceTask>
+    <sequenceFlow id="sid-A89A31B3-1D75-4E40-9973-6DA58FEA3764" sourceRef="MatchChildren" targetRef="ChildonRequest">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-A89A31B3-1D75-4E40-9973-6DA58FEA3764]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="sid-4637F0E8-BA38-4B43-B559-0A6822D15FBD" sourceRef="ChildonRequest" targetRef="sid-678BA41E-C60F-4A16-8C08-D33656029A94">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-4637F0E8-BA38-4B43-B559-0A6822D15FBD]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="sid-AC0334C4-C07B-4C55-BD42-420A2E23D706" sourceRef="sid-678BA41E-C60F-4A16-8C08-D33656029A94" targetRef="MatchNCP">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-AC0334C4-C07B-4C55-BD42-420A2E23D706]]></modeler:editor-resource-id>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"true".equalsIgnoreCase(QUALIFYING_CHILDREN)}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="sid-F7A16674-EBB5-47FE-8A71-36B926CF8587" sourceRef="StartClientMatch" targetRef="MatchCP">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-F7A16674-EBB5-47FE-8A71-36B926CF8587]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <transaction id="MatchChildren" name="Match Child(ren)">
+      <documentation>Match all children on the referral to known children in Child Support/Hub.  This process checks for Children referred with whom Child Support is unable to take action (over 17.5 or Emancipated) and removes these child(ren) from the referral process.   Process will check ALL children on a specific referral.</documentation>
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[MatchChildren]]></modeler:editor-resource-id>
+      </extensionElements>
+      <multiInstanceLoopCharacteristics isSequential="true" activiti:collection="INPUT_CHILDREN" activiti:elementVariable="child"/>
+      <exclusiveGateway id="Child_CINFound" name="Child CIN Match Found?">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[Child_CINFound]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <userTask id="ResolveChild" name="Resolve Child" activiti:candidateGroups="CASE_OPEN_IBES_REFERRAL" activiti:formKey="/case-open/initiation/child-resolution" activiti:priority="1">
+        <documentation>This task automatically sets when Nexi is unable to add a new customer or match the child’s information to an existing customer. SRSs review the information received from IBES to determine whether to add a new customer or match the customer to an existing customer.</documentation>
+        <extensionElements>
+          <activiti:taskListener event="create" expression="#{coClientService.setResolutionTask(task, &quot;CHILD&quot;, child.toString())}"/>
+          <activiti:taskListener event="create" delegateExpression="${lastCompletedAssigner}"/>
+          <modeler:allow-send-email><![CDATA[true]]></modeler:allow-send-email>
+          <modeler:initiator-can-complete><![CDATA[false]]></modeler:initiator-can-complete>
+          <modeler:editor-resource-id><![CDATA[ResolveChild]]></modeler:editor-resource-id>
+        </extensionElements>
+      </userTask>
+      <exclusiveGateway id="EmancipationOutcome" name="Emancipation Outcome">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[EmancipationOutcome]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <serviceTask id="CheckCreateChildAge" name="Check IBES Child Age  " activiti:expression="${coChildService.isChildAgeValid(execution, &quot;IBES&quot;, loopCounter)}" activiti:resultVariableName="CHILD_AGE_VALID_IBES">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CheckCreateChildAge]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <endEvent id="EndChildRequest" name="End Child Request">
+        <documentation>This removes this child from the set of people to include in the request from IBES.  The overall request will continue if at least one child remains after all children are matched and checked for Emancipation.</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[EndChildRequest]]></modeler:editor-resource-id>
+        </extensionElements>
+        <terminateEventDefinition/>
+      </endEvent>
+      <callActivity id="MatchChildrenClients" name="Match Children Clients" calledElement="ClientMatchProcessFlow" activiti:inheritVariables="false">
+        <documentation>Look for client in different systems (CS, IBES and ICARE), return Client Found, if not client found, continue flow. 
+
+If Match returns more than 1 result, then present resolution task to user. 
+If Match returns 1 result, then consider match and move to next step in flow. 
+If 0 match returned, then No match found, move to next step in flow.</documentation>
+        <extensionElements>
+          <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+          <activiti:in sourceExpression="CHILD" target="PERSON_TYPE"/>
+          <activiti:in sourceExpression="${INPUT_CHILDREN.indexOf(child)}" target="CHILD_INDEX"/>
+          <activiti:in source="STARTED_BY" target="STARTED_BY"/>
+          <activiti:in source="SOURCE" target="SOURCE"/>
+          <activiti:in source="STAGE_ID" target="STAGE_ID"/>
+          <activiti:in source="CHILD_IDS" target="CHILD_IDS"/>
+          <activiti:out source="CLIENT_MATCH_OUTCOME" target="CHILD_CLIENT_MATCH"/>
+          <activiti:out source="JSON_MATCH_RESULTS_PAYLOAD" target="JSON_MATCH_RESULTS_PAYLOAD"/>
+          <modeler:editor-resource-id><![CDATA[MatchChildrenClients]]></modeler:editor-resource-id>
+        </extensionElements>
+      </callActivity>
+      <exclusiveGateway id="CreateChildAgeOutcome" name="Create Child Age Outcome">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CreateChildAgeOutcome]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <serviceTask id="CreateChildClient" name="Create New Child Client" activiti:expression="${coClientService.createPerson(execution, &quot;CHILD&quot;, loopCounter)}">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CreateChildClient]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <exclusiveGateway id="ChildResolutionOutcome" name="Resolve  Child Outcome" default="sid-74D8DCF8-11AE-48BE-B41C-295D2641BFC1">
+        <documentation>The outcome the CS User selects when resolving a Match Person issue.  Outcomes include:
+-Create a New Client
+-Selecting one option presented by the system (Results in Match Client)
+-Searching for an existing Child Support Client and selecting that client (Results in Match Client.)</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[ChildResolutionOutcome]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <startEvent id="StartChildClientMatch" name="Start Child Client Match">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[StartChildClientMatch]]></modeler:editor-resource-id>
+        </extensionElements>
+      </startEvent>
+      <serviceTask id="CheckChildAge" name="Check CS Client  Age" activiti:expression="${coChildService.isChildAgeValid(execution, &quot;ICSES&quot;, loopCounter)}" activiti:resultVariableName="CHILD_AGE_VALID_CS">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CheckChildAge]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <exclusiveGateway id="ChildAgeOutcome" name="Child Age Outcome">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[ChildAgeOutcome]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <serviceTask id="CheckChildStatus" name="Check Child Status Reason" activiti:expression="${coChildService.isChildEmancipated(execution)}" activiti:resultVariableName="CHILD_STATUS_REASON">
+        <documentation>Use Case Search, Search for Child CIN, and Check Child Status. 
+
+
+To Check the Emancipation Status of a child.  If CS Child Status is Emancipated, Deceased, or Over 18/In School for any case the child is found on, then the Child/Client is considered Emancipated.</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CheckChildStatus]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <intermediateThrowEvent id="ExistingChild_CS_ClientMatched" name="Existing CS Client Matched">
+        <documentation>Match Applicant to Child.  To match the applicant passed to a known person in Child Support / Hub.</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[ExistingChild_CS_ClientMatched]]></modeler:editor-resource-id>
+        </extensionElements>
+      </intermediateThrowEvent>
+      <endEvent id="sid-D1E2B4AD-0C2D-46BA-961F-BEC1FA11D366">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-D1E2B4AD-0C2D-46BA-961F-BEC1FA11D366]]></modeler:editor-resource-id>
+        </extensionElements>
+      </endEvent>
+      <exclusiveGateway id="sid-02D6AC30-1B39-44F9-8A36-A0297368AE8A" default="sid-27EED7E5-816A-4A45-89CF-92A40BFD632E">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-02D6AC30-1B39-44F9-8A36-A0297368AE8A]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <serviceTask id="CheckForDuplicateChild" name="Check For Duplicate Child" activiti:expression="${coClientService.checkDuplicateClient(execution, &quot;CHILD&quot;, loopCounter)}">
+        <documentation>Checks if the Child is already known to Child Support</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CheckForDuplicateChild]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <sequenceFlow id="sid-1991BA21-A7FE-4749-B75E-4CE0095539E4" name=">17.5" sourceRef="CreateChildAgeOutcome" targetRef="EndChildRequest">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-1991BA21-A7FE-4749-B75E-4CE0095539E4]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"false".equalsIgnoreCase(CHILD_AGE_VALID_IBES)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-8979DD82-9B90-4A47-8E2B-51BFCD998BC3" name="Emancipated  Child" sourceRef="EmancipationOutcome" targetRef="EndChildRequest">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-8979DD82-9B90-4A47-8E2B-51BFCD998BC3]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"true".equalsIgnoreCase(CHILD_STATUS_REASON)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-AA81C56F-A97B-4E41-ADAD-9DCD8330BF16" sourceRef="CheckCreateChildAge" targetRef="CreateChildAgeOutcome">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-AA81C56F-A97B-4E41-ADAD-9DCD8330BF16]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-183EF1A9-3E8B-4B38-86FC-F69A2409BC1D" name="&lt;17.5" sourceRef="CreateChildAgeOutcome" targetRef="CreateChildClient">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-183EF1A9-3E8B-4B38-86FC-F69A2409BC1D]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"true".equalsIgnoreCase(CHILD_AGE_VALID_IBES)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-51CD809B-21E8-49BD-8D0A-2F5F99413FBA" sourceRef="ResolveChild" targetRef="ChildResolutionOutcome">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-51CD809B-21E8-49BD-8D0A-2F5F99413FBA]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-1661CBBC-0C5D-4EF3-B47F-A7DB00542485" sourceRef="StartChildClientMatch" targetRef="MatchChildrenClients">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-1661CBBC-0C5D-4EF3-B47F-A7DB00542485]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-9891E118-49B1-4C17-99D5-912790155AB8" sourceRef="CheckChildAge" targetRef="ChildAgeOutcome">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-9891E118-49B1-4C17-99D5-912790155AB8]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-F099747C-B038-4DD6-8AA9-C554BE8B8D26" sourceRef="CheckChildStatus" targetRef="EmancipationOutcome">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-F099747C-B038-4DD6-8AA9-C554BE8B8D26]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-15E314F3-30DE-44DD-A1F6-17F25BD0AC47" sourceRef="ExistingChild_CS_ClientMatched" targetRef="CheckChildAge">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-15E314F3-30DE-44DD-A1F6-17F25BD0AC47]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-98B4577A-2FA4-4A63-869B-7D6E75501D1E" name="1= 1 Match Found in CS" sourceRef="Child_CINFound" targetRef="ExistingChild_CS_ClientMatched">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-98B4577A-2FA4-4A63-869B-7D6E75501D1E]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"1".equalsIgnoreCase(CHILD_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-AC72B478-1329-42BD-B943-A9878151E09A" name="0=No match found in CS" sourceRef="Child_CINFound" targetRef="CheckCreateChildAge">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-AC72B478-1329-42BD-B943-A9878151E09A]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"0".equalsIgnoreCase(CHILD_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-EF68685D-8DD6-4317-82CD-DE53D7531677" sourceRef="CreateChildClient" targetRef="sid-D1E2B4AD-0C2D-46BA-961F-BEC1FA11D366">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-EF68685D-8DD6-4317-82CD-DE53D7531677]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-73B7382F-8551-4993-88AF-1AC7C05A760D" name=">17.5" sourceRef="ChildAgeOutcome" targetRef="EndChildRequest">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-73B7382F-8551-4993-88AF-1AC7C05A760D]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"false".equalsIgnoreCase(CHILD_AGE_VALID_CS)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-EFE1A997-294C-430E-A954-FC04131BDBFB" name="&lt;17.5" sourceRef="ChildAgeOutcome" targetRef="CheckChildStatus">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-EFE1A997-294C-430E-A954-FC04131BDBFB]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"true".equalsIgnoreCase(CHILD_AGE_VALID_CS)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-E7F513E6-D685-43C7-BB77-E1B79874118B" name="R=Resolution Required" sourceRef="Child_CINFound" targetRef="ResolveChild">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-E7F513E6-D685-43C7-BB77-E1B79874118B]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"R".equalsIgnoreCase(CHILD_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-74D8DCF8-11AE-48BE-B41C-295D2641BFC1" sourceRef="ChildResolutionOutcome" targetRef="CheckForDuplicateChild">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-74D8DCF8-11AE-48BE-B41C-295D2641BFC1]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-478A9571-0A47-418C-8663-A59EC9CF6E72" sourceRef="CheckForDuplicateChild" targetRef="sid-02D6AC30-1B39-44F9-8A36-A0297368AE8A">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-478A9571-0A47-418C-8663-A59EC9CF6E72]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-27EED7E5-816A-4A45-89CF-92A40BFD632E" sourceRef="sid-02D6AC30-1B39-44F9-8A36-A0297368AE8A" targetRef="ResolveChild">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-27EED7E5-816A-4A45-89CF-92A40BFD632E]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-27B48E6D-B40B-4981-B588-6BC15202D9D1" name="Select Existing CS Client" sourceRef="ChildResolutionOutcome" targetRef="ExistingChild_CS_ClientMatched">
+        <extensionElements>
+          <activiti:executionListener event="take" expression="${coClientService.resetDuplicateIndicator(execution)}"/>
+          <modeler:editor-resource-id><![CDATA[sid-27B48E6D-B40B-4981-B588-6BC15202D9D1]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${CHILD_CLIENT_ID != null}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-B871976B-8847-489E-B444-C8B235D791EE" name="Create New Child" sourceRef="sid-02D6AC30-1B39-44F9-8A36-A0297368AE8A" targetRef="CheckCreateChildAge">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-B871976B-8847-489E-B444-C8B235D791EE]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"false".equalsIgnoreCase(DUPLICATE_CLIENT)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-F15F1F63-716D-4127-BD1A-3CB634116760" name="NOT Emancipated" sourceRef="EmancipationOutcome" targetRef="sid-D1E2B4AD-0C2D-46BA-961F-BEC1FA11D366">
+        <extensionElements>
+          <activiti:executionListener event="take" expression="#{execution.setVariable(&quot;ALL_NEW_CHILDREN&quot;, &quot;false&quot;)}"/>
+          <activiti:executionListener event="take" expression="#{coChildService.setMatchedChildCIN(execution, loopCounter)}"/>
+          <modeler:editor-resource-id><![CDATA[sid-F15F1F63-716D-4127-BD1A-3CB634116760]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"false".equalsIgnoreCase(CHILD_STATUS_REASON)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-FF5971BD-5AB9-4D82-8BF5-D7602E1F3345" sourceRef="MatchChildrenClients" targetRef="Child_CINFound">
+        <extensionElements>
+          <activiti:executionListener event="start" expression="#{execution.removeVariable(&quot;CHILD_CLIENT_ID&quot;)}"/>
+          <modeler:editor-resource-id><![CDATA[sid-FF5971BD-5AB9-4D82-8BF5-D7602E1F3345]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+    </transaction>
+    <transaction id="MatchNCP" name="Match NCP">
+      <documentation>Match Other Parent / NCP</documentation>
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[MatchNCP]]></modeler:editor-resource-id>
+      </extensionElements>
+      <userTask id="ResolveNCP" name="Resolve Other Parent" activiti:candidateGroups="CASE_OPEN_IBES_REFERRAL" activiti:formKey="/case-open/initiation/ncp-resolution" activiti:priority="1">
+        <documentation>This task automatically sets when Nexi is unable to add a new customer or match the other parent’s information to an existing customer. SRSs review the information received from IBES to determine whether to add a new customer or match the customer to an existing customer.</documentation>
+        <extensionElements>
+          <activiti:taskListener event="create" expression="#{coClientService.setResolutionTask(task, &quot;NCP&quot;, referralPropExtractor.getAttributeValue(JSON_PAYLOAD, &quot;/clientAP/personDetails/cin&quot;))}"/>
+          <activiti:taskListener event="create" delegateExpression="${lastCompletedAssigner}"/>
+          <modeler:allow-send-email><![CDATA[true]]></modeler:allow-send-email>
+          <modeler:initiator-can-complete><![CDATA[false]]></modeler:initiator-can-complete>
+          <modeler:editor-resource-id><![CDATA[ResolveNCP]]></modeler:editor-resource-id>
+        </extensionElements>
+      </userTask>
+      <serviceTask id="CreateNCPClient" name="Create New NCP Client" activiti:expression="${coClientService.createPerson(execution, &quot;NCP&quot;, 0)}">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CreateNCPClient]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <exclusiveGateway id="CP_Child_CaseSearchOutcome" name="CP and  Child Case Search Outcome">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CP_Child_CaseSearchOutcome]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <exclusiveGateway id="MinDataKnown" name="Min Data Known?" default="sid-981F90CE-B8C0-489A-839C-AB54F2F1D9B6">
+        <documentation>Check to verify at least 3 of the following elements is known about the NCP/Other Parent:
+FName,
+LName,
+SSN, or 
+DOB
+
+AND Gender???
+
+If Not Applicable in IBES, then it will never have enough data.</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[MinDataKnown]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <endEvent id="EndRequest_NoNCP" name="End Request-No NCP">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[EndRequest_NoNCP]]></modeler:editor-resource-id>
+        </extensionElements>
+        <terminateEventDefinition/>
+      </endEvent>
+      <serviceTask id="CP_Child_CaseSearch" name="CP and Child Case Search" activiti:expression="${coCaseChecker.findCasesWithCPAndChildren(execution)}" activiti:resultVariableName="CP_CHILD_CASES">
+        <documentation>Check for Matching Cases for CP CIN and Child(ren) CIN.  
+
+If there is a matching case, then present that case and the NCP included on that Case as a resolution option 
+for the user to Select the NCP (or not).</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CP_Child_CaseSearch]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <intermediateThrowEvent id="NCPClientCreated" name="NCP Client Created">
+        <documentation>When a Client is matched to one and only one Child Support ClientID.</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[NCPClientCreated]]></modeler:editor-resource-id>
+        </extensionElements>
+      </intermediateThrowEvent>
+      <callActivity id="MatchNCPClient" name="Match NCP Client" calledElement="ClientMatchProcessFlow" activiti:inheritVariables="false">
+        <documentation>Look for client in different systems (CS, IBES and ICARE), return Client Found, if not client found, continue flow. 
+
+If Match returns more than 1 result, then present resolution task to user. 
+If Match returns 1 result, then consider match and move to next step in flow. 
+If 0 match returned, then No match found, move to next step in flow.</documentation>
+        <extensionElements>
+          <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+          <activiti:in sourceExpression="NCP" target="PERSON_TYPE"/>
+          <activiti:in sourceExpression="${&quot;0&quot;.indexOf(&quot;0&quot;)}" target="CHILD_INDEX"/>
+          <activiti:in source="STAGE_ID" target="STAGE_ID"/>
+          <activiti:out source="CLIENT_MATCH_OUTCOME" target="NCP_CLIENT_MATCH"/>
+          <activiti:out source="JSON_MATCH_RESULTS_PAYLOAD" target="JSON_MATCH_RESULTS_PAYLOAD"/>
+          <activiti:out source="SYSTEM_TYPE" target="SYSTEM_TYPE"/>
+          <modeler:editor-resource-id><![CDATA[MatchNCPClient]]></modeler:editor-resource-id>
+        </extensionElements>
+      </callActivity>
+      <intermediateThrowEvent id="ExistingNCP_CSClientFound" name="Existing NCP CS Client Found">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[ExistingNCP_CSClientFound]]></modeler:editor-resource-id>
+        </extensionElements>
+      </intermediateThrowEvent>
+      <exclusiveGateway id="ResolveNCPOutcome" name="Resolve NCP Outcome" default="sid-B3382D05-D040-4816-B76E-5872BC497DE8">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[ResolveNCPOutcome]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <startEvent id="sid-DF7BB297-EFE0-45DE-AB0B-5C661145AB59">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-DF7BB297-EFE0-45DE-AB0B-5C661145AB59]]></modeler:editor-resource-id>
+        </extensionElements>
+      </startEvent>
+      <exclusiveGateway id="NCP_CINFound" name="NCP CIN Found?">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[NCP_CINFound]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <endEvent id="sid-D0992560-65B7-4B98-8EC0-EF0CD6859EC4">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-D0992560-65B7-4B98-8EC0-EF0CD6859EC4]]></modeler:editor-resource-id>
+        </extensionElements>
+      </endEvent>
+      <exclusiveGateway id="sid-D8D05A3D-89B4-4650-8496-FFF0D7118E79" default="Duplicate_NCP_Found">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-D8D05A3D-89B4-4650-8496-FFF0D7118E79]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <serviceTask id="CheckForDuplicateNCP" name="Check For Duplicate NCP" activiti:expression="${coClientService.checkDuplicateClient(execution, &quot;NCP&quot;, 0)}">
+        <documentation>Checks if the NCP's CIN/SSN is already known to Child Support</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CheckForDuplicateNCP]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <serviceTask id="sid-5DB8F1B2-D16A-407F-9BE1-68036C322101" name="NCP min data check" activiti:expression="${referralPropExtractor.hasBasicNcpInfo(execution)}" activiti:resultVariableName="NCP_MIN_DATA">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-5DB8F1B2-D16A-407F-9BE1-68036C322101]]></modeler:editor-resource-id>
+        </extensionElements>
+      </serviceTask>
+      <endEvent id="TerminateReferral_NCP_UserRequest" name="Terminate Referral - User Request">
+        <documentation>As an SRS worker, I need to be able to end the IBES referral when working Resolve Other Parent task when I find that there is not enough data to continue the flow.</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[TerminateReferral_NCP_UserRequest]]></modeler:editor-resource-id>
+        </extensionElements>
+        <terminateEventDefinition/>
+      </endEvent>
+      <intermediateThrowEvent id="sid-B4AA0493-CDFF-4A64-8158-7119D719EBC5">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-B4AA0493-CDFF-4A64-8158-7119D719EBC5]]></modeler:editor-resource-id>
+        </extensionElements>
+      </intermediateThrowEvent>
+      <exclusiveGateway id="sid-3F724B95-E897-4822-B992-5D6EF66550CF" default="sid-961CB22A-448D-4E85-9F89-2F3369011BC2">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-3F724B95-E897-4822-B992-5D6EF66550CF]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <callActivity id="NoNcpInfo" name="No NCP Info" calledElement="CaseOpenTerminationBackgroundFlow" activiti:inheritVariables="false">
+        <extensionElements>
+          <activiti:in source="TASK_TITLE" target="TASK_TITLE"/>
+          <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+          <activiti:in sourceExpression="NO_NCP_INFO" target="TERMINATION_REASON"/>
+          <activiti:in source="LAST_TASK_COMPLETED_BY" target="LAST_TASK_COMPLETED_BY"/>
+          <modeler:editor-resource-id><![CDATA[sid-43C796D7-F2C4-4A06-B861-93465A54C4E5]]></modeler:editor-resource-id>
+        </extensionElements>
+      </callActivity>
+      <sequenceFlow id="sid-4AB46DA1-AFCF-445C-9117-C06A5DBED8B6" sourceRef="CP_Child_CaseSearch" targetRef="CP_Child_CaseSearchOutcome">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-4AB46DA1-AFCF-445C-9117-C06A5DBED8B6]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-342112A2-21B4-42FD-8B9B-115C45DADA6E" sourceRef="MatchNCPClient" targetRef="NCP_CINFound">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-342112A2-21B4-42FD-8B9B-115C45DADA6E]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-86D256FA-777D-4789-82D9-F01765935FFC" name="Case Found" sourceRef="CP_Child_CaseSearchOutcome" targetRef="sid-B4AA0493-CDFF-4A64-8158-7119D719EBC5">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-86D256FA-777D-4789-82D9-F01765935FFC]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${!CP_CHILD_CASES.isEmpty()}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-CE913A20-7601-435F-9770-02D93DE3C2AB" sourceRef="ResolveNCP" targetRef="ResolveNCPOutcome">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-CE913A20-7601-435F-9770-02D93DE3C2AB]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-1C04F0E7-90DB-46A1-8D0E-68A5E7195F12" sourceRef="sid-DF7BB297-EFE0-45DE-AB0B-5C661145AB59" targetRef="MatchNCPClient">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-1C04F0E7-90DB-46A1-8D0E-68A5E7195F12]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-86B5E9ED-4666-4932-9777-355E5F38B1DE" name="New Client with IBES OTHER  Parent Data" sourceRef="CreateNCPClient" targetRef="NCPClientCreated">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-86B5E9ED-4666-4932-9777-355E5F38B1DE]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-CE0087FB-CB1B-4778-9CE7-C28B08745140" name="No match  found" sourceRef="NCP_CINFound" targetRef="CP_Child_CaseSearch">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-CE0087FB-CB1B-4778-9CE7-C28B08745140]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"0".equalsIgnoreCase(NCP_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-D2BB817F-CADF-4FA8-927B-6EE7511DE6D0" sourceRef="NCPClientCreated" targetRef="sid-D0992560-65B7-4B98-8EC0-EF0CD6859EC4">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-D2BB817F-CADF-4FA8-927B-6EE7511DE6D0]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-9E0A99C6-CC07-4CA5-8DA6-D13F1D7EC4A8" sourceRef="ExistingNCP_CSClientFound" targetRef="sid-D0992560-65B7-4B98-8EC0-EF0CD6859EC4">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-9E0A99C6-CC07-4CA5-8DA6-D13F1D7EC4A8]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-EA3282BB-1E66-4681-B46B-5C0D4E6DFD25" name="1 Match  Found in CS" sourceRef="NCP_CINFound" targetRef="ExistingNCP_CSClientFound">
+        <extensionElements>
+          <activiti:executionListener event="take" expression="#{coClientService.setPotentialMatchCin(execution, &quot;NCP&quot;)}"/>
+          <modeler:editor-resource-id><![CDATA[sid-EA3282BB-1E66-4681-B46B-5C0D4E6DFD25]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"1".equalsIgnoreCase(NCP_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-C1B38013-E1B7-403F-899B-C3625EFF263D" sourceRef="sid-D8D05A3D-89B4-4650-8496-FFF0D7118E79" targetRef="CreateNCPClient">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-C1B38013-E1B7-403F-899B-C3625EFF263D]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"false".equalsIgnoreCase(DUPLICATE_CLIENT)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-36EE32D0-5F22-4ED1-94BF-650342538541" sourceRef="CheckForDuplicateNCP" targetRef="sid-D8D05A3D-89B4-4650-8496-FFF0D7118E79">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-36EE32D0-5F22-4ED1-94BF-650342538541]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-4C7CAEF2-E173-4EA7-9CF6-295F37AF4D9F" name="No Case" sourceRef="CP_Child_CaseSearchOutcome" targetRef="sid-5DB8F1B2-D16A-407F-9BE1-68036C322101">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-4C7CAEF2-E173-4EA7-9CF6-295F37AF4D9F]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${CP_CHILD_CASES.isEmpty()}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-AEF15BDE-DC06-4775-AC94-E81F3BB4E7A2" name="R=Resolution" sourceRef="NCP_CINFound" targetRef="ResolveNCP">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-AEF15BDE-DC06-4775-AC94-E81F3BB4E7A2]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"R".equalsIgnoreCase(NCP_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="REFERRAL_TERMINATION_USER_REQUEST_NCP" name="User Terminated Referral" sourceRef="ResolveNCPOutcome" targetRef="TerminateReferral_NCP_UserRequest">
+        <documentation>SRS chose to end the entire referral process.</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[REFERRAL_TERMINATION_USER_REQUEST_NCP]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"true".equalsIgnoreCase(TERMINATE_REFERRAL)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-B3382D05-D040-4816-B76E-5872BC497DE8" sourceRef="ResolveNCPOutcome" targetRef="CheckForDuplicateNCP">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-B3382D05-D040-4816-B76E-5872BC497DE8]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-CE404706-1CDB-4652-9387-3713560A0264" name="Select Existing  CS Client" sourceRef="ResolveNCPOutcome" targetRef="ExistingNCP_CSClientFound">
+        <extensionElements>
+          <activiti:executionListener event="take" expression="${coClientService.resetDuplicateIndicator(execution)}"/>
+          <modeler:editor-resource-id><![CDATA[sid-CE404706-1CDB-4652-9387-3713560A0264]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${NCP_CLIENT_ID != null && "ICSES".equalsIgnoreCase(SYSTEM_TYPE)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="Duplicate_NCP_Found" name="Duplicate Found" sourceRef="sid-D8D05A3D-89B4-4650-8496-FFF0D7118E79" targetRef="sid-B4AA0493-CDFF-4A64-8158-7119D719EBC5">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[Duplicate_NCP_Found]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-06167CFF-EC68-41F2-84F3-BFACA07E1B4E" sourceRef="sid-B4AA0493-CDFF-4A64-8158-7119D719EBC5" targetRef="ResolveNCP">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-06167CFF-EC68-41F2-84F3-BFACA07E1B4E]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-6E59C8C0-99DF-45E3-836D-863FCC4AD79D" sourceRef="MinDataKnown" targetRef="CreateNCPClient">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-6E59C8C0-99DF-45E3-836D-863FCC4AD79D]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"true".equalsIgnoreCase(NCP_MIN_DATA)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-2647C449-E802-48A4-A638-B6C585F7B639" sourceRef="sid-5DB8F1B2-D16A-407F-9BE1-68036C322101" targetRef="MinDataKnown">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-2647C449-E802-48A4-A638-B6C585F7B639]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-981F90CE-B8C0-489A-839C-AB54F2F1D9B6" sourceRef="MinDataKnown" targetRef="sid-3F724B95-E897-4822-B992-5D6EF66550CF">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-981F90CE-B8C0-489A-839C-AB54F2F1D9B6]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-55E86B32-B396-4E43-BEBE-147AA967936D" sourceRef="NoNcpInfo" targetRef="EndRequest_NoNCP">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-55E86B32-B396-4E43-BEBE-147AA967936D]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-961CB22A-448D-4E85-9F89-2F3369011BC2" sourceRef="sid-3F724B95-E897-4822-B992-5D6EF66550CF" targetRef="NoNcpInfo">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-961CB22A-448D-4E85-9F89-2F3369011BC2]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-1F9FA65B-4AF8-4D12-A8DA-9B29E160A2B5" sourceRef="sid-3F724B95-E897-4822-B992-5D6EF66550CF" targetRef="EndRequest_NoNCP">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-1F9FA65B-4AF8-4D12-A8DA-9B29E160A2B5]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${execution.getVariable("LAST_TASK_COMPLETED_BY") == null}]]></conditionExpression>
+      </sequenceFlow>
+      <textAnnotation id="sid-62754D80-796E-41DF-9456-F15F63BDF737">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-62754D80-796E-41DF-9456-F15F63BDF737]]></modeler:editor-resource-id>
+        </extensionElements>
+        <text>Return any case that includes CP CIN and Child(ren) CINs</text>
+      </textAnnotation>
+    </transaction>
+    <boundaryEvent id="sid-221CC303-10A8-40C6-A2A4-4215A69CFA53" attachedToRef="MatchCP">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-221CC303-10A8-40C6-A2A4-4215A69CFA53]]></modeler:editor-resource-id>
+      </extensionElements>
+      <errorEventDefinition/>
+    </boundaryEvent>
+    <callActivity id="cpRecoveryFlow" name="CP Recovery Flow" calledElement="BasicErrorFlowBackground" activiti:inheritVariables="false">
+      <extensionElements>
+        <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+        <activiti:in source="STAGE_ID" target="STAGE_ID"/>
+        <activiti:in source="LAST_TASK_COMPLETED_BY" target="LAST_TASK_COMPLETED_BY"/>
+        <modeler:editor-resource-id><![CDATA[cpRecoveryFlow]]></modeler:editor-resource-id>
+      </extensionElements>
+    </callActivity>
+    <sequenceFlow id="sid-24F74B68-391B-4144-8204-CA129BEF204A" sourceRef="sid-221CC303-10A8-40C6-A2A4-4215A69CFA53" targetRef="cpRecoveryFlow">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-24F74B68-391B-4144-8204-CA129BEF204A]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <callActivity id="childRecoveryFlow" name="Child Recovery Flow" calledElement="BasicErrorFlowBackground" activiti:inheritVariables="false">
+      <extensionElements>
+        <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+        <activiti:in source="STAGE_ID" target="STAGE_ID"/>
+        <activiti:in source="LAST_TASK_COMPLETED_BY" target="LAST_TASK_COMPLETED_BY"/>
+        <modeler:editor-resource-id><![CDATA[childRecoveryFlow]]></modeler:editor-resource-id>
+      </extensionElements>
+    </callActivity>
+    <sequenceFlow id="sid-F23CD363-0B22-4030-9CB2-8676FE5D1581" sourceRef="sid-9F7EEEAC-48F1-4435-9469-6446106F21EE" targetRef="childRecoveryFlow">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-F23CD363-0B22-4030-9CB2-8676FE5D1581]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <boundaryEvent id="sid-4F9565AE-FD3A-4282-8458-C89794DF2BF9" attachedToRef="MatchNCP">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-4F9565AE-FD3A-4282-8458-C89794DF2BF9]]></modeler:editor-resource-id>
+      </extensionElements>
+      <errorEventDefinition/>
+    </boundaryEvent>
+    <callActivity id="ncpRecoveryFlow" name="NCP Recovery Flow" calledElement="BasicErrorFlowBackground" activiti:inheritVariables="false">
+      <extensionElements>
+        <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+        <activiti:in source="STAGE_ID" target="STAGE_ID"/>
+        <activiti:in source="LAST_TASK_COMPLETED_BY" target="LAST_TASK_COMPLETED_BY"/>
+        <modeler:editor-resource-id><![CDATA[ncpRecoveryFlow]]></modeler:editor-resource-id>
+      </extensionElements>
+    </callActivity>
+    <sequenceFlow id="sid-C7A03E7D-4033-42F6-A568-B810DBCD1C46" name="No Qualifying Children" sourceRef="sid-678BA41E-C60F-4A16-8C08-D33656029A94" targetRef="NoEligibleChildren">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-C7A03E7D-4033-42F6-A568-B810DBCD1C46]]></modeler:editor-resource-id>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"false".equalsIgnoreCase(QUALIFYING_CHILDREN)}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="sid-5D16A1A8-A08B-488D-8DC0-849FD8B4A675" sourceRef="MatchCP" targetRef="MatchChildren">
+      <extensionElements>
+        <activiti:executionListener event="take" expression="#{execution.setVariable(&quot;skip&quot;, 1)}"/>
+        <activiti:executionListener event="take" expression="#{execution.setVariable(&quot;INPUT_CHILDREN&quot;, referralPropExtractor.getArrayValues(JSON_PAYLOAD, &quot;clientChild&quot;, &quot;/personDetails/cin&quot;))}"/>
+        <activiti:executionListener event="take" expression="#{execution.setVariable(&quot;ALL_NEW_CHILDREN&quot;, &quot;true&quot;)}"/>
+        <modeler:editor-resource-id><![CDATA[sid-5D16A1A8-A08B-488D-8DC0-849FD8B4A675]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="sid-9D177E22-9617-4E66-96AF-90F0D8EA0A63" sourceRef="cpRecoveryFlow" targetRef="end_cp_recovery">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-9D177E22-9617-4E66-96AF-90F0D8EA0A63]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="sid-35FF4C1F-85FA-4F36-A4F5-1AFDDFE97C32" sourceRef="childRecoveryFlow" targetRef="end_child_recovery">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-35FF4C1F-85FA-4F36-A4F5-1AFDDFE97C32]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="sid-B12B0DFC-C643-4871-B1C7-714C0A470236" sourceRef="ncpRecoveryFlow" targetRef="end_ncp_recovery">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-B12B0DFC-C643-4871-B1C7-714C0A470236]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="sid-7249001C-D97B-4245-ADD8-CD64A0AD3DE3" sourceRef="sid-4F9565AE-FD3A-4282-8458-C89794DF2BF9" targetRef="ncpRecoveryFlow">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-7249001C-D97B-4245-ADD8-CD64A0AD3DE3]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <boundaryEvent id="sid-9F7EEEAC-48F1-4435-9469-6446106F21EE" attachedToRef="MatchChildren">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-9F7EEEAC-48F1-4435-9469-6446106F21EE]]></modeler:editor-resource-id>
+      </extensionElements>
+      <errorEventDefinition/>
+    </boundaryEvent>
+    <sequenceFlow id="sid-D3ABC545-7268-4EA9-BD15-276B1D906379" sourceRef="MatchNCP" targetRef="RequestClientsKnown">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-D3ABC545-7268-4EA9-BD15-276B1D906379]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <endEvent id="RequestClientsKnown" name="Request Clients Known">
+      <documentation>All Clients in request from IBES have CS CIN</documentation>
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-4B99E8AE-5648-435B-973A-60916620F2F1]]></modeler:editor-resource-id>
+      </extensionElements>
+    </endEvent>
+    <callActivity id="NoEligibleChildren" name="No Eligible Children" calledElement="CaseOpenTerminationBackgroundFlow" activiti:inheritVariables="false">
+      <extensionElements>
+        <activiti:in source="TASK_TITLE" target="TASK_TITLE"/>
+        <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+        <activiti:in sourceExpression="NO_ELIGIBLE_CHILDREN" target="TERMINATION_REASON"/>
+        <activiti:in source="LAST_TASK_COMPLETED_BY" target="LAST_TASK_COMPLETED_BY"/>
+        <modeler:editor-resource-id><![CDATA[sid-AF8C3146-6E65-4DCB-B0BD-7B1BF65F6E4E]]></modeler:editor-resource-id>
+      </extensionElements>
+    </callActivity>
+    <endEvent id="EndRequest_NoChildren" name="EndRequest-No Child(ren)">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-E8E0E328-E18F-426F-A7E1-748FFD8127F4]]></modeler:editor-resource-id>
+      </extensionElements>
+      <terminateEventDefinition/>
+    </endEvent>
+    <sequenceFlow id="sid-391F5329-5C8E-4D65-925A-E00BBA739312" sourceRef="NoEligibleChildren" targetRef="EndRequest_NoChildren">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-391F5329-5C8E-4D65-925A-E00BBA739312]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <endEvent id="end_cp_recovery">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-CBD66AFB-BDF1-437C-A947-4BDB1EA47B02]]></modeler:editor-resource-id>
+      </extensionElements>
+      <terminateEventDefinition/>
+    </endEvent>
+    <endEvent id="end_child_recovery">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-47190DB1-AE35-49DE-B044-AA0EE0A4C6BF]]></modeler:editor-resource-id>
+      </extensionElements>
+      <terminateEventDefinition/>
+    </endEvent>
+    <endEvent id="end_ncp_recovery">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-E1BE13CD-0E44-41CF-8CC7-0CFB548507DB]]></modeler:editor-resource-id>
+      </extensionElements>
+      <terminateEventDefinition/>
+    </endEvent>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_PersonMatchFlow">
+    <bpmndi:BPMNPlane bpmnElement="PersonMatchFlow" id="BPMNPlane_PersonMatchFlow">
+      <bpmndi:BPMNShape bpmnElement="StartClientMatch" id="BPMNShape_StartClientMatch">
+        <omgdc:Bounds height="30.0" width="30.0" x="0.0" y="732.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="MatchCP" id="BPMNShape_MatchCP">
+        <omgdc:Bounds height="843.0" width="833.0" x="59.0" y="318.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="MatchCPClient" id="BPMNShape_MatchCPClient">
+        <omgdc:Bounds height="80.0" width="100.0" x="90.0" y="405.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CP_CINFound" id="BPMNShape_CP_CINFound">
+        <omgdc:Bounds height="40.0" width="40.0" x="240.0" y="439.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ResolveCPTask" id="BPMNShape_ResolveCPTask">
+        <omgdc:Bounds height="80.0" width="100.0" x="405.0" y="419.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CreateCPClient" id="BPMNShape_CreateCPClient">
+        <omgdc:Bounds height="80.0" width="100.0" x="495.0" y="735.0000000000001"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CPClientCreated" id="BPMNShape_CPClientCreated">
+        <omgdc:Bounds height="30.0" width="30.0" x="695.0" y="760.0000000000001"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CPResolutionOutcome" id="BPMNShape_CPResolutionOutcome">
+        <omgdc:Bounds height="40.0" width="40.0" x="525.0" y="439.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="StartCPClientMatch" id="BPMNShape_StartCPClientMatch">
+        <omgdc:Bounds height="30.0" width="30.0" x="136.0" y="357.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ExistingCP_CS_ClientMatched" id="BPMNShape_ExistingCP_CS_ClientMatched">
+        <omgdc:Bounds height="30.0" width="30.0" x="530.0" y="357.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-667BE814-E8DE-408A-9D35-AE0FEF95659A" id="BPMNShape_sid-667BE814-E8DE-408A-9D35-AE0FEF95659A">
+        <omgdc:Bounds height="28.0" width="28.0" x="801.0" y="445.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CheckForDuplicateCP" id="BPMNShape_CheckForDuplicateCP">
+        <omgdc:Bounds height="80.0" width="100.0" x="495.0" y="517.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-5AF52186-5B52-4A78-80E6-D379F64414C0" id="BPMNShape_sid-5AF52186-5B52-4A78-80E6-D379F64414C0">
+        <omgdc:Bounds height="40.0" width="40.0" x="525.0" y="630.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Update_CP_Contact_Info" id="BPMNShape_Update_CP_Contact_Info">
+        <omgdc:Bounds height="80.0" width="100.0" x="765.0" y="520.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-0869F520-2A41-4917-9283-137DE25202B0" id="BPMNShape_sid-0869F520-2A41-4917-9283-137DE25202B0">
+        <omgdc:Bounds height="40.0" width="40.0" x="690.0" y="540.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-9A1E2C96-E975-4396-A992-BD30A65CCBDF" id="BPMNShape_sid-9A1E2C96-E975-4396-A992-BD30A65CCBDF">
+        <omgdc:Bounds height="56.0" width="146.0" x="527.0" y="830.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-F44EFD36-498F-4786-B39E-F7455E4442EA" id="BPMNShape_sid-F44EFD36-498F-4786-B39E-F7455E4442EA">
+        <omgdc:Bounds height="126.0" width="222.0" x="270.0" y="494.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-678BA41E-C60F-4A16-8C08-D33656029A94" id="BPMNShape_sid-678BA41E-C60F-4A16-8C08-D33656029A94">
+        <omgdc:Bounds height="40.0" width="40.0" x="2331.0" y="727.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ChildonRequest" id="BPMNShape_ChildonRequest">
+        <omgdc:Bounds height="72.0" width="82.0" x="2210.0" y="711.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="MatchChildren" id="BPMNShape_MatchChildren">
+        <omgdc:Bounds height="845.0" width="1226.0" x="915.0" y="315.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Child_CINFound" id="BPMNShape_Child_CINFound">
+        <omgdc:Bounds height="40.0" width="40.0" x="1064.0" y="606.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ResolveChild" id="BPMNShape_ResolveChild">
+        <omgdc:Bounds height="78.0" width="96.0" x="1170.0" y="585.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="EmancipationOutcome" id="BPMNShape_EmancipationOutcome">
+        <omgdc:Bounds height="40.0" width="40.0" x="1854.0" y="509.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CheckCreateChildAge" id="BPMNShape_CheckCreateChildAge">
+        <omgdc:Bounds height="82.0" width="91.0" x="1326.0" y="930.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="EndChildRequest" id="BPMNShape_EndChildRequest">
+        <omgdc:Bounds height="28.0" width="28.0" x="1860.0" y="719.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="MatchChildrenClients" id="BPMNShape_MatchChildrenClients">
+        <omgdc:Bounds height="79.0" width="100.0" x="930.0" y="585.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CreateChildAgeOutcome" id="BPMNShape_CreateChildAgeOutcome">
+        <omgdc:Bounds height="40.0" width="40.0" x="1854.0" y="838.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CreateChildClient" id="BPMNShape_CreateChildClient">
+        <omgdc:Bounds height="59.0" width="100.0" x="1824.0" y="995.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ChildResolutionOutcome" id="BPMNShape_ChildResolutionOutcome">
+        <omgdc:Bounds height="40.0" width="40.0" x="1352.0" y="606.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="StartChildClientMatch" id="BPMNShape_StartChildClientMatch">
+        <omgdc:Bounds height="30.0" width="30.0" x="965.0" y="510.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CheckChildAge" id="BPMNShape_CheckChildAge">
+        <omgdc:Bounds height="79.0" width="95.0" x="1440.0" y="384.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ChildAgeOutcome" id="BPMNShape_ChildAgeOutcome">
+        <omgdc:Bounds height="40.0" width="40.0" x="1610.0" y="404.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CheckChildStatus" id="BPMNShape_CheckChildStatus">
+        <omgdc:Bounds height="82.0" width="100.0" x="1710.0" y="383.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ExistingChild_CS_ClientMatched" id="BPMNShape_ExistingChild_CS_ClientMatched">
+        <omgdc:Bounds height="30.0" width="30.0" x="1357.0" y="409.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-D1E2B4AD-0C2D-46BA-961F-BEC1FA11D366" id="BPMNShape_sid-D1E2B4AD-0C2D-46BA-961F-BEC1FA11D366">
+        <omgdc:Bounds height="28.0" width="28.0" x="2007.0" y="515.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-02D6AC30-1B39-44F9-8A36-A0297368AE8A" id="BPMNShape_sid-02D6AC30-1B39-44F9-8A36-A0297368AE8A">
+        <omgdc:Bounds height="40.0" width="40.0" x="1352.0" y="810.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CheckForDuplicateChild" id="BPMNShape_CheckForDuplicateChild">
+        <omgdc:Bounds height="80.0" width="100.0" x="1322.0" y="693.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="MatchNCP" id="BPMNShape_MatchNCP">
+        <omgdc:Bounds height="939.0" width="1178.0" x="2430.0" y="300.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ResolveNCP" id="BPMNShape_ResolveNCP">
+        <omgdc:Bounds height="79.0" width="100.0" x="3120.0" y="540.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CreateNCPClient" id="BPMNShape_CreateNCPClient">
+        <omgdc:Bounds height="80.0" width="100.0" x="3275.0" y="885.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CP_Child_CaseSearchOutcome" id="BPMNShape_CP_Child_CaseSearchOutcome">
+        <omgdc:Bounds height="40.0" width="40.0" x="3155.0" y="855.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="MinDataKnown" id="BPMNShape_MinDataKnown">
+        <omgdc:Bounds height="40.0" width="40.0" x="3305.0" y="989.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="EndRequest_NoNCP" id="BPMNShape_EndRequest_NoNCP">
+        <omgdc:Bounds height="28.0" width="28.0" x="3435.0" y="1170.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CP_Child_CaseSearch" id="BPMNShape_CP_Child_CaseSearch">
+        <omgdc:Bounds height="80.0" width="100.0" x="2957.000000000001" y="835.0000000000001"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="NCPClientCreated" id="BPMNShape_NCPClientCreated">
+        <omgdc:Bounds height="30.0" width="30.0" x="3495.0" y="760.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="MatchNCPClient" id="BPMNShape_MatchNCPClient">
+        <omgdc:Bounds height="79.0" width="100.0" x="2500.0000000000005" y="540.0000000000002"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ExistingNCP_CSClientFound" id="BPMNShape_ExistingNCP_CSClientFound">
+        <omgdc:Bounds height="30.0" width="30.0" x="3310.0" y="406.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ResolveNCPOutcome" id="BPMNShape_ResolveNCPOutcome">
+        <omgdc:Bounds height="40.0" width="40.0" x="3305.0" y="559.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-DF7BB297-EFE0-45DE-AB0B-5C661145AB59" id="BPMNShape_sid-DF7BB297-EFE0-45DE-AB0B-5C661145AB59">
+        <omgdc:Bounds height="30.0" width="30.0" x="2533.0" y="473.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="NCP_CINFound" id="BPMNShape_NCP_CINFound">
+        <omgdc:Bounds height="40.0" width="40.0" x="2987.0000000000005" y="559.5000000000001"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-D0992560-65B7-4B98-8EC0-EF0CD6859EC4" id="BPMNShape_sid-D0992560-65B7-4B98-8EC0-EF0CD6859EC4">
+        <omgdc:Bounds height="28.0" width="28.0" x="3496.0" y="575.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-D8D05A3D-89B4-4650-8496-FFF0D7118E79" id="BPMNShape_sid-D8D05A3D-89B4-4650-8496-FFF0D7118E79">
+        <omgdc:Bounds height="40.0" width="40.0" x="3305.0" y="810.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CheckForDuplicateNCP" id="BPMNShape_CheckForDuplicateNCP">
+        <omgdc:Bounds height="80.0" width="100.0" x="3275.000000000001" y="660.0000000000001"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-5DB8F1B2-D16A-407F-9BE1-68036C322101" id="BPMNShape_sid-5DB8F1B2-D16A-407F-9BE1-68036C322101">
+        <omgdc:Bounds height="80.0" width="100.0" x="3125.0" y="969.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="TerminateReferral_NCP_UserRequest" id="BPMNShape_TerminateReferral_NCP_UserRequest">
+        <omgdc:Bounds height="28.0" width="28.0" x="3405.0" y="500.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-B4AA0493-CDFF-4A64-8158-7119D719EBC5" id="BPMNShape_sid-B4AA0493-CDFF-4A64-8158-7119D719EBC5">
+        <omgdc:Bounds height="30.0" width="30.0" x="3160.0000000000005" y="760.0000000000001"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-3F724B95-E897-4822-B992-5D6EF66550CF" id="BPMNShape_sid-3F724B95-E897-4822-B992-5D6EF66550CF">
+        <omgdc:Bounds height="40.0" width="40.0" x="3305.0" y="1070.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="NoNcpInfo" id="BPMNShape_NoNcpInfo">
+        <omgdc:Bounds height="80.0" width="100.0" x="3399.0" y="1050.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-62754D80-796E-41DF-9456-F15F63BDF737" id="BPMNShape_sid-62754D80-796E-41DF-9456-F15F63BDF737">
+        <omgdc:Bounds height="50.0" width="100.0" x="2849.0" y="870.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-221CC303-10A8-40C6-A2A4-4215A69CFA53" id="BPMNShape_sid-221CC303-10A8-40C6-A2A4-4215A69CFA53">
+        <omgdc:Bounds height="30.0" width="30.0" x="464.5481646215963" y="1146.435450132193"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="cpRecoveryFlow" id="BPMNShape_cpRecoveryFlow">
+        <omgdc:Bounds height="80.0" width="100.0" x="448.0" y="1230.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="childRecoveryFlow" id="BPMNShape_childRecoveryFlow">
+        <omgdc:Bounds height="80.0" width="100.0" x="1478.0" y="1230.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-4F9565AE-FD3A-4282-8458-C89794DF2BF9" id="BPMNShape_sid-4F9565AE-FD3A-4282-8458-C89794DF2BF9">
+        <omgdc:Bounds height="30.0" width="30.0" x="2809.5528312452216" y="1224.1635729310058"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ncpRecoveryFlow" id="BPMNShape_ncpRecoveryFlow">
+        <omgdc:Bounds height="80.0" width="100.0" x="2880.0" y="1305.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-9F7EEEAC-48F1-4435-9469-6446106F21EE" id="BPMNShape_sid-9F7EEEAC-48F1-4435-9469-6446106F21EE">
+        <omgdc:Bounds height="30.0" width="30.0" x="1504.3940635690492" y="1145.338248299627"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="RequestClientsKnown" id="BPMNShape_RequestClientsKnown">
+        <omgdc:Bounds height="28.0" width="28.0" x="3675.0" y="733.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="NoEligibleChildren" id="BPMNShape_NoEligibleChildren">
+        <omgdc:Bounds height="80.0" width="100.0" x="2301.0" y="448.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="EndRequest_NoChildren" id="BPMNShape_EndRequest_NoChildren">
+        <omgdc:Bounds height="28.0" width="28.0" x="2337.0" y="339.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="end_cp_recovery" id="BPMNShape_end_cp_recovery">
+        <omgdc:Bounds height="28.0" width="28.0" x="480.0" y="1350.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="end_child_recovery" id="BPMNShape_end_child_recovery">
+        <omgdc:Bounds height="28.0" width="28.0" x="1514.0" y="1350.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="end_ncp_recovery" id="BPMNShape_end_ncp_recovery">
+        <omgdc:Bounds height="28.0" width="28.0" x="2916.0" y="1425.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="sid-AC72B478-1329-42BD-B943-A9878151E09A" id="BPMNEdge_sid-AC72B478-1329-42BD-B943-A9878151E09A">
+        <omgdi:waypoint x="1084.0" y="646.0"/>
+        <omgdi:waypoint x="1084.0" y="971.0"/>
+        <omgdi:waypoint x="1326.0" y="971.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-E99D2497-B4EA-4EE6-BDAB-16648FD1022F" id="BPMNEdge_sid-E99D2497-B4EA-4EE6-BDAB-16648FD1022F">
+        <omgdi:waypoint x="710.0" y="760.0000000000001"/>
+        <omgdi:waypoint x="710.0" y="580.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-CE913A20-7601-435F-9770-02D93DE3C2AB" id="BPMNEdge_sid-CE913A20-7601-435F-9770-02D93DE3C2AB">
+        <omgdi:waypoint x="3220.0" y="579.3387096774194"/>
+        <omgdi:waypoint x="3305.064308681672" y="579.0643086816721"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-98B4577A-2FA4-4A63-869B-7D6E75501D1E" id="BPMNEdge_sid-98B4577A-2FA4-4A63-869B-7D6E75501D1E">
+        <omgdi:waypoint x="1084.0" y="606.0"/>
+        <omgdi:waypoint x="1084.0" y="424.0"/>
+        <omgdi:waypoint x="1357.0" y="424.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-E7F513E6-D685-43C7-BB77-E1B79874118B" id="BPMNEdge_sid-E7F513E6-D685-43C7-BB77-E1B79874118B">
+        <omgdi:waypoint x="1104.0" y="626.0"/>
+        <omgdi:waypoint x="1137.0" y="626.0"/>
+        <omgdi:waypoint x="1170.0" y="625.1851851851852"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-391F5329-5C8E-4D65-925A-E00BBA739312" id="BPMNEdge_sid-391F5329-5C8E-4D65-925A-E00BBA739312">
+        <omgdi:waypoint x="2351.0" y="448.0"/>
+        <omgdi:waypoint x="2351.0" y="367.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-324F0892-7FC5-419C-82C2-88AF97568CA0" id="BPMNEdge_sid-324F0892-7FC5-419C-82C2-88AF97568CA0">
+        <omgdi:waypoint x="525.0" y="650.0"/>
+        <omgdi:waypoint x="455.0" y="650.0"/>
+        <omgdi:waypoint x="455.0" y="499.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-86B5E9ED-4666-4932-9777-355E5F38B1DE" id="BPMNEdge_sid-86B5E9ED-4666-4932-9777-355E5F38B1DE">
+        <omgdi:waypoint x="3375.0" y="928.75"/>
+        <omgdi:waypoint x="3525.0" y="940.0"/>
+        <omgdi:waypoint x="3511.358036190638" y="789.9383980970156"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-B3382D05-D040-4816-B76E-5872BC497DE8" id="BPMNEdge_sid-B3382D05-D040-4816-B76E-5872BC497DE8">
+        <omgdi:waypoint x="3325.0" y="598.9999999999999"/>
+        <omgdi:waypoint x="3325.0000000000005" y="660.0000000000001"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-35FF4C1F-85FA-4F36-A4F5-1AFDDFE97C32" id="BPMNEdge_sid-35FF4C1F-85FA-4F36-A4F5-1AFDDFE97C32">
+        <omgdi:waypoint x="1528.0" y="1310.0"/>
+        <omgdi:waypoint x="1528.0" y="1350.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-668D2C54-E20C-4286-B7E6-49B4F00D4CB2" id="BPMNEdge_sid-668D2C54-E20C-4286-B7E6-49B4F00D4CB2">
+        <omgdi:waypoint x="505.0" y="459.0"/>
+        <omgdi:waypoint x="525.0" y="459.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-D2BB817F-CADF-4FA8-927B-6EE7511DE6D0" id="BPMNEdge_sid-D2BB817F-CADF-4FA8-927B-6EE7511DE6D0">
+        <omgdi:waypoint x="3510.0" y="760.0"/>
+        <omgdi:waypoint x="3510.0" y="603.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-AC0334C4-C07B-4C55-BD42-420A2E23D706" id="BPMNEdge_sid-AC0334C4-C07B-4C55-BD42-420A2E23D706">
+        <omgdi:waypoint x="2371.0" y="747.0"/>
+        <omgdi:waypoint x="2408.0" y="747.0"/>
+        <omgdi:waypoint x="2408.0" y="769.0"/>
+        <omgdi:waypoint x="2430.0" y="769.0180032733224"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-51CD809B-21E8-49BD-8D0A-2F5F99413FBA" id="BPMNEdge_sid-51CD809B-21E8-49BD-8D0A-2F5F99413FBA">
+        <omgdi:waypoint x="1266.0" y="624.0"/>
+        <omgdi:waypoint x="1309.0" y="624.0"/>
+        <omgdi:waypoint x="1352.6153846153845" y="625.3846153846154"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-1661CBBC-0C5D-4EF3-B47F-A7DB00542485" id="BPMNEdge_sid-1661CBBC-0C5D-4EF3-B47F-A7DB00542485">
+        <omgdi:waypoint x="980.0" y="540.0"/>
+        <omgdi:waypoint x="980.0" y="585.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-D3ABC545-7268-4EA9-BD15-276B1D906379" id="BPMNEdge_sid-D3ABC545-7268-4EA9-BD15-276B1D906379">
+        <omgdi:waypoint x="3608.0" y="749.7201492537313"/>
+        <omgdi:waypoint x="3675.0078876263046" y="747.4698843707585"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-FF5971BD-5AB9-4D82-8BF5-D7602E1F3345" id="BPMNEdge_sid-FF5971BD-5AB9-4D82-8BF5-D7602E1F3345">
+        <omgdi:waypoint x="1030.0" y="625.2211538461538"/>
+        <omgdi:waypoint x="1064.2843601895734" y="625.7156398104265"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Duplicate_NCP_Found" id="BPMNEdge_Duplicate_NCP_Found">
+        <omgdi:waypoint x="3308.7974683544303" y="833.7974683544304"/>
+        <omgdi:waypoint x="3261.0" y="845.0"/>
+        <omgdi:waypoint x="3261.0" y="790.0"/>
+        <omgdi:waypoint x="3189.776913445471" y="777.5773686242102"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-B12B0DFC-C643-4871-B1C7-714C0A470236" id="BPMNEdge_sid-B12B0DFC-C643-4871-B1C7-714C0A470236">
+        <omgdi:waypoint x="2930.0" y="1385.0"/>
+        <omgdi:waypoint x="2930.0" y="1425.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-4637F0E8-BA38-4B43-B559-0A6822D15FBD" id="BPMNEdge_sid-4637F0E8-BA38-4B43-B559-0A6822D15FBD">
+        <omgdi:waypoint x="2292.0" y="747.0"/>
+        <omgdi:waypoint x="2331.0" y="747.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-6E59C8C0-99DF-45E3-836D-863FCC4AD79D" id="BPMNEdge_sid-6E59C8C0-99DF-45E3-836D-863FCC4AD79D">
+        <omgdi:waypoint x="3325.0" y="989.0"/>
+        <omgdi:waypoint x="3325.0" y="965.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-981F90CE-B8C0-489A-839C-AB54F2F1D9B6" id="BPMNEdge_sid-981F90CE-B8C0-489A-839C-AB54F2F1D9B6">
+        <omgdi:waypoint x="3325.0" y="1029.0"/>
+        <omgdi:waypoint x="3325.0" y="1070.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-F099747C-B038-4DD6-8AA9-C554BE8B8D26" id="BPMNEdge_sid-F099747C-B038-4DD6-8AA9-C554BE8B8D26">
+        <omgdi:waypoint x="1810.0" y="424.0"/>
+        <omgdi:waypoint x="1874.0" y="424.0"/>
+        <omgdi:waypoint x="1874.0" y="509.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-36EE32D0-5F22-4ED1-94BF-650342538541" id="BPMNEdge_sid-36EE32D0-5F22-4ED1-94BF-650342538541">
+        <omgdi:waypoint x="3325.0000000000005" y="740.0000000000001"/>
+        <omgdi:waypoint x="3325.0" y="809.9999999999999"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-A89A31B3-1D75-4E40-9973-6DA58FEA3764" id="BPMNEdge_sid-A89A31B3-1D75-4E40-9973-6DA58FEA3764">
+        <omgdi:waypoint x="2141.0" y="745.554633471646"/>
+        <omgdi:waypoint x="2210.0" y="746.4612724757953"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-786ECBAF-3B21-4145-8EE8-52BE35AFA417" id="BPMNEdge_sid-786ECBAF-3B21-4145-8EE8-52BE35AFA417">
+        <omgdi:waypoint x="260.0" y="439.0"/>
+        <omgdi:waypoint x="260.0" y="372.0"/>
+        <omgdi:waypoint x="530.0" y="372.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-4C7CAEF2-E173-4EA7-9CF6-295F37AF4D9F" id="BPMNEdge_sid-4C7CAEF2-E173-4EA7-9CF6-295F37AF4D9F">
+        <omgdi:waypoint x="3175.0" y="895.0"/>
+        <omgdi:waypoint x="3175.0" y="969.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-55E86B32-B396-4E43-BEBE-147AA967936D" id="BPMNEdge_sid-55E86B32-B396-4E43-BEBE-147AA967936D">
+        <omgdi:waypoint x="3449.0" y="1130.0"/>
+        <omgdi:waypoint x="3449.0" y="1170.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-72100342-4CCD-4FEC-A666-1C71407EA187" id="BPMNEdge_sid-72100342-4CCD-4FEC-A666-1C71407EA187">
+        <omgdi:waypoint x="595.0" y="775.0000000000001"/>
+        <omgdi:waypoint x="695.0" y="775.0000000000001"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-5B7ABAF5-C897-4B72-AC47-CF2BE6DA592F" id="BPMNEdge_sid-5B7ABAF5-C897-4B72-AC47-CF2BE6DA592F">
+        <omgdi:waypoint x="280.0" y="459.0"/>
+        <omgdi:waypoint x="405.0" y="459.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-10CC277D-76E0-4D07-901A-49E1F6146B92" id="BPMNEdge_sid-10CC277D-76E0-4D07-901A-49E1F6146B92">
+        <omgdi:waypoint x="560.0" y="372.0"/>
+        <omgdi:waypoint x="815.0" y="372.0"/>
+        <omgdi:waypoint x="815.0" y="445.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-F7A16674-EBB5-47FE-8A71-36B926CF8587" id="BPMNEdge_sid-F7A16674-EBB5-47FE-8A71-36B926CF8587">
+        <omgdi:waypoint x="29.998010984659928" y="746.7557327201196"/>
+        <omgdi:waypoint x="59.0" y="746.2833876221498"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-5D16A1A8-A08B-488D-8DC0-849FD8B4A675" id="BPMNEdge_sid-5D16A1A8-A08B-488D-8DC0-849FD8B4A675">
+        <omgdi:waypoint x="892.0" y="738.7085510688836"/>
+        <omgdi:waypoint x="915.0" y="738.6648456057007"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-183EF1A9-3E8B-4B38-86FC-F69A2409BC1D" id="BPMNEdge_sid-183EF1A9-3E8B-4B38-86FC-F69A2409BC1D">
+        <omgdi:waypoint x="1874.0" y="878.0"/>
+        <omgdi:waypoint x="1874.0" y="995.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-AEF15BDE-DC06-4775-AC94-E81F3BB4E7A2" id="BPMNEdge_sid-AEF15BDE-DC06-4775-AC94-E81F3BB4E7A2">
+        <omgdi:waypoint x="3027.0000000000005" y="579.5000000000001"/>
+        <omgdi:waypoint x="3120.0" y="579.5"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="REFERRAL_TERMINATION_USER_REQUEST_NCP" id="BPMNEdge_REFERRAL_TERMINATION_USER_REQUEST_NCP">
+        <omgdi:waypoint x="3342.4193548387098" y="581.5806451612904"/>
+        <omgdi:waypoint x="3433.0" y="595.0"/>
+        <omgdi:waypoint x="3421.384399993063" y="527.7954571027234"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-F23CD363-0B22-4030-9CB2-8676FE5D1581" id="BPMNEdge_sid-F23CD363-0B22-4030-9CB2-8676FE5D1581">
+        <omgdi:waypoint x="1532.7251706490852" y="1167.2144088577154"/>
+        <omgdi:waypoint x="1732.0" y="1270.0"/>
+        <omgdi:waypoint x="1578.0" y="1270.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-FA8C84B9-FCF9-4C3E-9610-4E449CE61C4A" id="BPMNEdge_sid-FA8C84B9-FCF9-4C3E-9610-4E449CE61C4A">
+        <omgdi:waypoint x="545.0" y="479.0"/>
+        <omgdi:waypoint x="545.0" y="517.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-1C04F0E7-90DB-46A1-8D0E-68A5E7195F12" id="BPMNEdge_sid-1C04F0E7-90DB-46A1-8D0E-68A5E7195F12">
+        <omgdi:waypoint x="2548.3277905577556" y="502.99641801732156"/>
+        <omgdi:waypoint x="2549.136612021858" y="540.0000000000002"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-1F9FA65B-4AF8-4D12-A8DA-9B29E160A2B5" id="BPMNEdge_sid-1F9FA65B-4AF8-4D12-A8DA-9B29E160A2B5">
+        <omgdi:waypoint x="3325.0" y="1110.0"/>
+        <omgdi:waypoint x="3325.0" y="1184.0"/>
+        <omgdi:waypoint x="3435.0" y="1184.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-EA3282BB-1E66-4681-B46B-5C0D4E6DFD25" id="BPMNEdge_sid-EA3282BB-1E66-4681-B46B-5C0D4E6DFD25">
+        <omgdi:waypoint x="3008.7777777777783" y="561.2777777777778"/>
+        <omgdi:waypoint x="3021.0" y="436.0"/>
+        <omgdi:waypoint x="3310.01822655052" y="421.73923224257305"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-2647C449-E802-48A4-A638-B6C585F7B639" id="BPMNEdge_sid-2647C449-E802-48A4-A638-B6C585F7B639">
+        <omgdi:waypoint x="3225.0" y="1009.0"/>
+        <omgdi:waypoint x="3305.0" y="1009.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-24F74B68-391B-4144-8204-CA129BEF204A" id="BPMNEdge_sid-24F74B68-391B-4144-8204-CA129BEF204A">
+        <omgdi:waypoint x="493.30205268048985" y="1167.4213137510392"/>
+        <omgdi:waypoint x="729.0" y="1270.0"/>
+        <omgdi:waypoint x="548.0" y="1270.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-74D8DCF8-11AE-48BE-B41C-295D2641BFC1" id="BPMNEdge_sid-74D8DCF8-11AE-48BE-B41C-295D2641BFC1">
+        <omgdi:waypoint x="1372.0" y="646.0"/>
+        <omgdi:waypoint x="1372.0" y="693.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-27EED7E5-816A-4A45-89CF-92A40BFD632E" id="BPMNEdge_sid-27EED7E5-816A-4A45-89CF-92A40BFD632E">
+        <omgdi:waypoint x="1352.0" y="830.0"/>
+        <omgdi:waypoint x="1218.0" y="830.0"/>
+        <omgdi:waypoint x="1218.0" y="663.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-EFE1A997-294C-430E-A954-FC04131BDBFB" id="BPMNEdge_sid-EFE1A997-294C-430E-A954-FC04131BDBFB">
+        <omgdi:waypoint x="1650.0" y="424.0"/>
+        <omgdi:waypoint x="1710.0" y="424.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-961CB22A-448D-4E85-9F89-2F3369011BC2" id="BPMNEdge_sid-961CB22A-448D-4E85-9F89-2F3369011BC2">
+        <omgdi:waypoint x="3345.0" y="1090.0"/>
+        <omgdi:waypoint x="3399.0" y="1090.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-27B48E6D-B40B-4981-B588-6BC15202D9D1" id="BPMNEdge_sid-27B48E6D-B40B-4981-B588-6BC15202D9D1">
+        <omgdi:waypoint x="1372.0" y="606.0"/>
+        <omgdi:waypoint x="1372.0" y="439.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-478A9571-0A47-418C-8663-A59EC9CF6E72" id="BPMNEdge_sid-478A9571-0A47-418C-8663-A59EC9CF6E72">
+        <omgdi:waypoint x="1372.0" y="773.0"/>
+        <omgdi:waypoint x="1372.0" y="810.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-A1090AD0-2810-489B-AD87-B2418453A1EF" id="BPMNEdge_sid-A1090AD0-2810-489B-AD87-B2418453A1EF">
+        <omgdi:waypoint x="190.0" y="445.0"/>
+        <omgdi:waypoint x="215.0" y="445.0"/>
+        <omgdi:waypoint x="215.0" y="459.0"/>
+        <omgdi:waypoint x="240.0" y="459.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-6831FD87-67D2-45E3-919C-5DDA81DC1B1C" id="BPMNEdge_sid-6831FD87-67D2-45E3-919C-5DDA81DC1B1C">
+        <omgdi:waypoint x="260.0" y="479.0"/>
+        <omgdi:waypoint x="260.0" y="775.0"/>
+        <omgdi:waypoint x="495.0" y="775.0000000000001"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-C7A03E7D-4033-42F6-A568-B810DBCD1C46" id="BPMNEdge_sid-C7A03E7D-4033-42F6-A568-B810DBCD1C46">
+        <omgdi:waypoint x="2351.0" y="727.0"/>
+        <omgdi:waypoint x="2351.0" y="528.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-86D256FA-777D-4789-82D9-F01765935FFC" id="BPMNEdge_sid-86D256FA-777D-4789-82D9-F01765935FFC">
+        <omgdi:waypoint x="3175.0" y="854.9999999999999"/>
+        <omgdi:waypoint x="3175.0000000000005" y="790.0000000000001"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-B43F9E0B-7E8F-441A-B06D-E435D4F99F0F" id="BPMNEdge_sid-B43F9E0B-7E8F-441A-B06D-E435D4F99F0F">
+        <omgdi:waypoint x="545.0" y="597.0"/>
+        <omgdi:waypoint x="545.0" y="630.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-6BE39376-0068-4428-B58A-D6DA9C17E0F0" id="BPMNEdge_sid-6BE39376-0068-4428-B58A-D6DA9C17E0F0">
+        <omgdi:waypoint x="545.0" y="439.0"/>
+        <omgdi:waypoint x="545.0" y="387.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-E98B8333-D5D4-475F-878C-9E1E3CAFD3AE" id="BPMNEdge_sid-E98B8333-D5D4-475F-878C-9E1E3CAFD3AE">
+        <omgdi:waypoint x="710.0" y="540.0"/>
+        <omgdi:waypoint x="710.0" y="459.0"/>
+        <omgdi:waypoint x="801.0" y="459.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-F15F1F63-716D-4127-BD1A-3CB634116760" id="BPMNEdge_sid-F15F1F63-716D-4127-BD1A-3CB634116760">
+        <omgdi:waypoint x="1894.0" y="529.0"/>
+        <omgdi:waypoint x="2007.0" y="529.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-C1B38013-E1B7-403F-899B-C3625EFF263D" id="BPMNEdge_sid-C1B38013-E1B7-403F-899B-C3625EFF263D">
+        <omgdi:waypoint x="3325.0" y="850.0"/>
+        <omgdi:waypoint x="3325.0" y="885.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-AA81C56F-A97B-4E41-ADAD-9DCD8330BF16" id="BPMNEdge_sid-AA81C56F-A97B-4E41-ADAD-9DCD8330BF16">
+        <omgdi:waypoint x="1417.0" y="971.0"/>
+        <omgdi:waypoint x="1635.0" y="971.0"/>
+        <omgdi:waypoint x="1635.0" y="858.0"/>
+        <omgdi:waypoint x="1854.0" y="858.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-185F31F8-BBA4-47C7-A622-1A46722DF352" id="BPMNEdge_sid-185F31F8-BBA4-47C7-A622-1A46722DF352">
+        <omgdi:waypoint x="148.76495797712062" y="386.8325516063813"/>
+        <omgdi:waypoint x="146.02739726027397" y="405.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-96E0C0FA-7784-4D26-BB74-E1C1F21609EB" id="BPMNEdge_sid-96E0C0FA-7784-4D26-BB74-E1C1F21609EB">
+        <omgdi:waypoint x="545.0" y="670.0"/>
+        <omgdi:waypoint x="545.0" y="735.0000000000001"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-8979DD82-9B90-4A47-8E2B-51BFCD998BC3" id="BPMNEdge_sid-8979DD82-9B90-4A47-8E2B-51BFCD998BC3">
+        <omgdi:waypoint x="1874.0" y="549.0"/>
+        <omgdi:waypoint x="1874.0" y="719.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-15E314F3-30DE-44DD-A1F6-17F25BD0AC47" id="BPMNEdge_sid-15E314F3-30DE-44DD-A1F6-17F25BD0AC47">
+        <omgdi:waypoint x="1386.9998594498868" y="423.935065543507"/>
+        <omgdi:waypoint x="1440.0" y="423.7056277056277"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-06167CFF-EC68-41F2-84F3-BFACA07E1B4E" id="BPMNEdge_sid-06167CFF-EC68-41F2-84F3-BFACA07E1B4E">
+        <omgdi:waypoint x="3174.616493692354" y="760.0049033710352"/>
+        <omgdi:waypoint x="3171.0102301790284" y="619.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-B871976B-8847-489E-B444-C8B235D791EE" id="BPMNEdge_sid-B871976B-8847-489E-B444-C8B235D791EE">
+        <omgdi:waypoint x="1371.929328621908" y="849.9293286219081"/>
+        <omgdi:waypoint x="1371.645390070922" y="930.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-CE0087FB-CB1B-4778-9CE7-C28B08745140" id="BPMNEdge_sid-CE0087FB-CB1B-4778-9CE7-C28B08745140">
+        <omgdi:waypoint x="3007.0000000000005" y="599.5000000000001"/>
+        <omgdi:waypoint x="3007.000000000001" y="835.0000000000001"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-E908F1FD-EB05-4B4F-B09B-21AFB222349B" id="BPMNEdge_sid-E908F1FD-EB05-4B4F-B09B-21AFB222349B">
+        <omgdi:waypoint x="815.0" y="520.0"/>
+        <omgdi:waypoint x="815.0" y="473.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-4AB46DA1-AFCF-445C-9117-C06A5DBED8B6" id="BPMNEdge_sid-4AB46DA1-AFCF-445C-9117-C06A5DBED8B6">
+        <omgdi:waypoint x="3057.000000000001" y="875.0000000000001"/>
+        <omgdi:waypoint x="3155.0" y="875.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-9E0A99C6-CC07-4CA5-8DA6-D13F1D7EC4A8" id="BPMNEdge_sid-9E0A99C6-CC07-4CA5-8DA6-D13F1D7EC4A8">
+        <omgdi:waypoint x="3339.957989648327" y="422.1218492236245"/>
+        <omgdi:waypoint x="3525.0" y="436.0"/>
+        <omgdi:waypoint x="3511.365999936439" y="575.0668006483203"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-7249001C-D97B-4245-ADD8-CD64A0AD3DE3" id="BPMNEdge_sid-7249001C-D97B-4245-ADD8-CD64A0AD3DE3">
+        <omgdi:waypoint x="2838.809035847241" y="1243.8284020109788"/>
+        <omgdi:waypoint x="3148.0" y="1345.0"/>
+        <omgdi:waypoint x="2980.0" y="1345.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-EF68685D-8DD6-4317-82CD-DE53D7531677" id="BPMNEdge_sid-EF68685D-8DD6-4317-82CD-DE53D7531677">
+        <omgdi:waypoint x="1924.0" y="1024.3299319727892"/>
+        <omgdi:waypoint x="2021.0" y="1024.0"/>
+        <omgdi:waypoint x="2021.0" y="543.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-CE404706-1CDB-4652-9387-3713560A0264" id="BPMNEdge_sid-CE404706-1CDB-4652-9387-3713560A0264">
+        <omgdi:waypoint x="3325.0" y="559.0"/>
+        <omgdi:waypoint x="3325.0" y="436.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Check_CIN_And_Update_Criteria" id="BPMNEdge_Check_CIN_And_Update_Criteria">
+        <omgdi:waypoint x="730.0" y="560.0"/>
+        <omgdi:waypoint x="765.0" y="560.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-9891E118-49B1-4C17-99D5-912790155AB8" id="BPMNEdge_sid-9891E118-49B1-4C17-99D5-912790155AB8">
+        <omgdi:waypoint x="1535.0" y="423.6666666666667"/>
+        <omgdi:waypoint x="1610.06993006993" y="423.9300699300699"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-342112A2-21B4-42FD-8B9B-115C45DADA6E" id="BPMNEdge_sid-342112A2-21B4-42FD-8B9B-115C45DADA6E">
+        <omgdi:waypoint x="2600.0000000000005" y="579.5000000000002"/>
+        <omgdi:waypoint x="2987.0000000000005" y="579.5000000000001"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-1991BA21-A7FE-4749-B75E-4CE0095539E4" id="BPMNEdge_sid-1991BA21-A7FE-4749-B75E-4CE0095539E4">
+        <omgdi:waypoint x="1874.0" y="838.0"/>
+        <omgdi:waypoint x="1874.0" y="747.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-9D177E22-9617-4E66-96AF-90F0D8EA0A63" id="BPMNEdge_sid-9D177E22-9617-4E66-96AF-90F0D8EA0A63">
+        <omgdi:waypoint x="496.29787234042556" y="1310.0"/>
+        <omgdi:waypoint x="494.5952060327474" y="1350.0126582304363"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-73B7382F-8551-4993-88AF-1AC7C05A760D" id="BPMNEdge_sid-73B7382F-8551-4993-88AF-1AC7C05A760D">
+        <omgdi:waypoint x="1630.0" y="444.0"/>
+        <omgdi:waypoint x="1630.0" y="733.0"/>
+        <omgdi:waypoint x="1860.0" y="733.0"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
