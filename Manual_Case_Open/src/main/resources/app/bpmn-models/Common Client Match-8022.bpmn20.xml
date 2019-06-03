@@ -1,0 +1,312 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="http://www.activiti.org/processdef" xmlns:modeler="http://activiti.com/modeler" modeler:version="1.0en" modeler:exportDateTime="20190603224618023" modeler:modelId="8022" modeler:modelVersion="1" modeler:modelLastUpdated="1559145790670">
+  <process id="CommonClientMatchProcessFlow" name="Common Client Match" isExecutable="true">
+    <startEvent id="Start_Client_Match_Process" name="Start Client Match Process">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[Start_Client_Match_Process]]></modeler:editor-resource-id>
+      </extensionElements>
+    </startEvent>
+    <callActivity id="Search_CS" name="Search CS" calledElement="ClientMatchDetailedProcessFlow" activiti:inheritVariables="false">
+      <documentation>Process searches Child Support for potentially matching Clients to the incoming details.  
+
+Purpose:  Identify if client exists in CS preventing duplicate clients and facilitating a case match. 
+
+Search looks for matches by Client ID (CIN),  phonetic name, or SSN and confirms matches with SSN and DOB if available.  Exact matches are confirmed by the system.  Potential matches create a Resolution task for SRS to resolve.  If no match is found, the system shall create a new CS client.</documentation>
+      <extensionElements>
+        <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+        <activiti:in source="PERSON_TYPE" target="PERSON_TYPE"/>
+        <activiti:in source="CHILD_INDEX" target="CHILD_INDEX"/>
+        <activiti:in source="NON_REFERRAL_BASED" target="NON_REFERRAL_BASED"/>
+        <activiti:in sourceExpression="ICSES" target="SYSTEM_TYPE"/>
+        <activiti:in source="STARTED_BY" target="STARTED_BY"/>
+        <activiti:in source="SOURCE" target="SOURCE"/>
+        <activiti:in source="STAGE_ID" target="STAGE_ID"/>
+        <activiti:in source="CHILD_IDS" target="CHILD_IDS"/>
+        <activiti:out source="JSON_MATCH_RESULTS_PAYLOAD" target="JSON_MATCH_RESULTS_PAYLOAD"/>
+        <activiti:out source="VAR_REFERRAL_SOURCE" target="VAR_REFERRAL_SOURCE"/>
+        <activiti:out source="SYSTEM_TYPE" target="SYSTEM_TYPE"/>
+        <modeler:editor-resource-id><![CDATA[Search_CS]]></modeler:editor-resource-id>
+      </extensionElements>
+    </callActivity>
+    <exclusiveGateway id="Search_CS_Outcome" name="Search CS Outcome">
+      <documentation>Exclusive gateway for search outcome.  If a definite action is achieved (Resolution or Match identified)  then process will end and resume Master Person Match process.</documentation>
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[Search_CS_Outcome]]></modeler:editor-resource-id>
+      </extensionElements>
+    </exclusiveGateway>
+    <sequenceFlow id="sid-B41EA6CC-7D70-4C94-9FF9-80BE61DB59DB" sourceRef="Search_CS" targetRef="Search_CS_Outcome">
+      <extensionElements>
+        <activiti:executionListener event="take" expression="#{execution.setVariable(&quot;CLIENT_MATCH_OUTCOME&quot;, referralPropExtractor.getAttributeValue(JSON_MATCH_RESULTS_PAYLOAD, &quot;/outcome&quot;))}"/>
+        <modeler:editor-resource-id><![CDATA[sid-B41EA6CC-7D70-4C94-9FF9-80BE61DB59DB]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <callActivity id="Search_IBES" name="Search IBES" calledElement="ClientMatchDetailedProcessFlow" activiti:inheritVariables="false">
+      <documentation>Process searches IBES for potentially matching Clients to the incoming details. Search is performed after the Child Support System has been search.  
+
+Purpose:  Identify if client exists in IBES so that system uses that Client ID to create CS client, thus preventing duplicate clients in the Self Reliance client directory. 
+
+ Search looks for matches by Client ID (CIN),  phonetic name, or SSN and confirms matches with SSN and DOB if available.  Exact matches are confirmed by the system.  Potential matches create a Resolution task for SRS to resolve.  If no match is found, the system shall create a new CS client.</documentation>
+      <extensionElements>
+        <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+        <activiti:in source="PERSON_TYPE" target="PERSON_TYPE"/>
+        <activiti:in source="CHILD_INDEX" target="CHILD_INDEX"/>
+        <activiti:in source="NON_REFERRAL_BASED" target="NON_REFERRAL_BASED"/>
+        <activiti:in sourceExpression="IBES" target="SYSTEM_TYPE"/>
+        <activiti:in source="STAGE_ID" target="STAGE_ID"/>
+        <activiti:out source="JSON_MATCH_RESULTS_PAYLOAD" target="JSON_MATCH_RESULTS_PAYLOAD"/>
+        <activiti:out source="SYSTEM_TYPE" target="SYSTEM_TYPE"/>
+        <modeler:editor-resource-id><![CDATA[Search_IBES]]></modeler:editor-resource-id>
+      </extensionElements>
+    </callActivity>
+    <endEvent id="End_ResultsFound_CS">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[End_ResultsFound_CS]]></modeler:editor-resource-id>
+      </extensionElements>
+    </endEvent>
+    <exclusiveGateway id="Search_IBES_Outcome" name="Search IBES Outcome">
+      <documentation>Exclusive gateway for search outcome.  If a definite action is achieved (Resolution or Match identified)  then process will end and resume Master Person Match process.</documentation>
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[Search_IBES_Outcome]]></modeler:editor-resource-id>
+      </extensionElements>
+    </exclusiveGateway>
+    <callActivity id="Search_ICARE" name="Search ICARE" calledElement="ClientMatchDetailedProcessFlow" activiti:inheritVariables="false">
+      <documentation>Process searches ICare for potentially matching Clients to the incoming details. Search is performed after the Child Support System has been search.  
+
+Purpose:  Identify if client exists in ICare so that system uses that Client ID to create CS client, thus preventing duplicate clients in the Self Reliance client directory. 
+
+ Search looks for matches by Client ID (CIN),  phonetic name, or SSN and confirms matches with SSN and DOB if available.  Exact matches are confirmed by the system.  Potential matches create a Resolution task for SRS to resolve.  If no match is found, the system shall create a new CS client.</documentation>
+      <extensionElements>
+        <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+        <activiti:in source="PERSON_TYPE" target="PERSON_TYPE"/>
+        <activiti:in source="CHILD_INDEX" target="CHILD_INDEX"/>
+        <activiti:in source="NON_REFERRAL_BASED" target="NON_REFERRAL_BASED"/>
+        <activiti:in sourceExpression="ICARE" target="SYSTEM_TYPE"/>
+        <activiti:in source="STAGE_ID" target="STAGE_ID"/>
+        <activiti:out source="JSON_MATCH_RESULTS_PAYLOAD" target="JSON_MATCH_RESULTS_PAYLOAD"/>
+        <activiti:out source="SYSTEM_TYPE" target="SYSTEM_TYPE"/>
+        <modeler:editor-resource-id><![CDATA[Search_ICARE]]></modeler:editor-resource-id>
+      </extensionElements>
+    </callActivity>
+    <sequenceFlow id="sid-8C0956A5-E656-4F46-AC15-9DC93DC4179D" sourceRef="Search_IBES" targetRef="Search_IBES_Outcome">
+      <extensionElements>
+        <activiti:executionListener event="take" expression="#{execution.setVariable(&quot;CLIENT_MATCH_OUTCOME&quot;, referralPropExtractor.getAttributeValue(JSON_MATCH_RESULTS_PAYLOAD, &quot;/outcome&quot;))}"/>
+        <modeler:editor-resource-id><![CDATA[sid-8C0956A5-E656-4F46-AC15-9DC93DC4179D]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <endEvent id="End_ResultsFound_IBES">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[End_ResultsFound_IBES]]></modeler:editor-resource-id>
+      </extensionElements>
+    </endEvent>
+    <endEvent id="End_NoMatches">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[End_NoMatches]]></modeler:editor-resource-id>
+      </extensionElements>
+    </endEvent>
+    <sequenceFlow id="Results_Found_In_IBES" name="Results Found" sourceRef="Search_IBES_Outcome" targetRef="End_ResultsFound_IBES">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[Results_Found_In_IBES]]></modeler:editor-resource-id>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"1".equalsIgnoreCase(CLIENT_MATCH_OUTCOME) || "R".equalsIgnoreCase(CLIENT_MATCH_OUTCOME)}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="NoMatches_In_IBES" name="No Matches" sourceRef="Search_IBES_Outcome" targetRef="Search_ICARE">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[NoMatches_In_IBES]]></modeler:editor-resource-id>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"0".equalsIgnoreCase(CLIENT_MATCH_OUTCOME)}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="sid-65532E67-7AB7-460D-B6CD-09BC1F61C49E" sourceRef="Search_ICARE" targetRef="Search_ICARE_Outcome">
+      <extensionElements>
+        <activiti:executionListener event="take" expression="#{execution.setVariable(&quot;CLIENT_MATCH_OUTCOME&quot;, referralPropExtractor.getAttributeValue(JSON_MATCH_RESULTS_PAYLOAD, &quot;/outcome&quot;))}"/>
+        <modeler:editor-resource-id><![CDATA[sid-65532E67-7AB7-460D-B6CD-09BC1F61C49E]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <exclusiveGateway id="Search_ICARE_Outcome" name="Search ICARE Outcome">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[Search_ICARE_Outcome]]></modeler:editor-resource-id>
+      </extensionElements>
+    </exclusiveGateway>
+    <endEvent id="End_ResultsFound_ICARE" name="End">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[End_ResultsFound_ICARE]]></modeler:editor-resource-id>
+      </extensionElements>
+    </endEvent>
+    <sequenceFlow id="Results_Found_In_ICARE" name="Results Found" sourceRef="Search_ICARE_Outcome" targetRef="End_ResultsFound_ICARE">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[Results_Found_In_ICARE]]></modeler:editor-resource-id>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"1".equalsIgnoreCase(CLIENT_MATCH_OUTCOME) || "R".equalsIgnoreCase(CLIENT_MATCH_OUTCOME)}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="NoMatches_In_ICARE" name="No Matches" sourceRef="Search_ICARE_Outcome" targetRef="End_NoMatches">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[NoMatches_In_ICARE]]></modeler:editor-resource-id>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"0".equalsIgnoreCase(CLIENT_MATCH_OUTCOME)}]]></conditionExpression>
+    </sequenceFlow>
+    <endEvent id="End_ResultsFound_CS_For_CP_And_Child">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[End_ResultsFound_CS_For_CP_And_Child]]></modeler:editor-resource-id>
+      </extensionElements>
+    </endEvent>
+    <serviceTask id="sid-FBCB6501-B138-4A2C-88FA-91F41A413F17" name="Complete Match Search" activiti:expression="${coClientService.processHubSearchMatch(execution, &quot;MATCH_ALL&quot;)}">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-FBCB6501-B138-4A2C-88FA-91F41A413F17]]></modeler:editor-resource-id>
+      </extensionElements>
+    </serviceTask>
+    <sequenceFlow id="sid-F7A5FC83-59A0-4044-BFD3-82307E66AFBA" sourceRef="Start_Client_Match_Process" targetRef="sid-FBCB6501-B138-4A2C-88FA-91F41A413F17">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-F7A5FC83-59A0-4044-BFD3-82307E66AFBA]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="sid-8F50DEFC-29CD-4A06-A26A-8D768394A609" sourceRef="sid-FBCB6501-B138-4A2C-88FA-91F41A413F17" targetRef="sid-15146846-B6E3-4372-AB66-15CDBB22672B">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-8F50DEFC-29CD-4A06-A26A-8D768394A609]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="NoMatches_In_CS_For_CP_And_Child" name="No Matches in CS For CP and Child" sourceRef="Search_CS_Outcome" targetRef="End_ResultsFound_CS_For_CP_And_Child">
+      <documentation>End the match process if no match is found for CP and Child in ICSES when payload is referred from IBES</documentation>
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[NoMatches_In_CS_For_CP_And_Child]]></modeler:editor-resource-id>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"0".equalsIgnoreCase(CLIENT_MATCH_OUTCOME) && ("IBES".equalsIgnoreCase(VAR_REFERRAL_SOURCE) &&  !"NCP".equalsIgnoreCase(PERSON_TYPE))}]]></conditionExpression>
+    </sequenceFlow>
+    <exclusiveGateway id="sid-15146846-B6E3-4372-AB66-15CDBB22672B" default="sid-AB8DCB2B-2C79-4AA8-949F-20B7393B1D71">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-15146846-B6E3-4372-AB66-15CDBB22672B]]></modeler:editor-resource-id>
+      </extensionElements>
+    </exclusiveGateway>
+    <endEvent id="sid-A77A8230-52AD-4618-812A-51034182914F">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-A77A8230-52AD-4618-812A-51034182914F]]></modeler:editor-resource-id>
+      </extensionElements>
+    </endEvent>
+    <sequenceFlow id="NoMatches_In_CS" name="No Matches" sourceRef="Search_CS_Outcome" targetRef="Search_IBES">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[NoMatches_In_CS]]></modeler:editor-resource-id>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"0".equalsIgnoreCase(CLIENT_MATCH_OUTCOME) && !("IBES".equalsIgnoreCase(VAR_REFERRAL_SOURCE) &&  !"NCP".equalsIgnoreCase(PERSON_TYPE))}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Results_Found_With_100_Search_Criteria" name="Results Found" sourceRef="sid-15146846-B6E3-4372-AB66-15CDBB22672B" targetRef="sid-A77A8230-52AD-4618-812A-51034182914F">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-28DE6C06-A956-4BFD-B07D-FE910A04D77A]]></modeler:editor-resource-id>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"1".equalsIgnoreCase(CLIENT_MATCH_OUTCOME) || "R".equalsIgnoreCase(CLIENT_MATCH_OUTCOME)}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="sid-AB8DCB2B-2C79-4AA8-949F-20B7393B1D71" sourceRef="sid-15146846-B6E3-4372-AB66-15CDBB22672B" targetRef="Search_CS">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-AB8DCB2B-2C79-4AA8-949F-20B7393B1D71]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="Results_Found_In_CS" name="Results Found" sourceRef="Search_CS_Outcome" targetRef="End_ResultsFound_CS">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[Results_Found_In_CS]]></modeler:editor-resource-id>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"1".equalsIgnoreCase(CLIENT_MATCH_OUTCOME) || "R".equalsIgnoreCase(CLIENT_MATCH_OUTCOME)}]]></conditionExpression>
+    </sequenceFlow>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_CommonClientMatchProcessFlow">
+    <bpmndi:BPMNPlane bpmnElement="CommonClientMatchProcessFlow" id="BPMNPlane_CommonClientMatchProcessFlow">
+      <bpmndi:BPMNShape bpmnElement="Start_Client_Match_Process" id="BPMNShape_Start_Client_Match_Process">
+        <omgdc:Bounds height="30.0" width="29.999999999999996" x="30.000000000000004" y="260.00000000000006"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Search_CS" id="BPMNShape_Search_CS">
+        <omgdc:Bounds height="80.0" width="100.0" x="375.00000000000006" y="235.00000000000006"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Search_CS_Outcome" id="BPMNShape_Search_CS_Outcome">
+        <omgdc:Bounds height="40.0" width="40.0" x="535.0" y="255.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Search_IBES" id="BPMNShape_Search_IBES">
+        <omgdc:Bounds height="80.0" width="100.0" x="705.0" y="235.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="End_ResultsFound_CS" id="BPMNShape_End_ResultsFound_CS">
+        <omgdc:Bounds height="28.0" width="28.0" x="538.0" y="452.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Search_IBES_Outcome" id="BPMNShape_Search_IBES_Outcome">
+        <omgdc:Bounds height="40.0" width="40.0" x="915.0" y="255.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Search_ICARE" id="BPMNShape_Search_ICARE">
+        <omgdc:Bounds height="80.0" width="100.0" x="885.0" y="430.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="End_ResultsFound_IBES" id="BPMNShape_End_ResultsFound_IBES">
+        <omgdc:Bounds height="28.0" width="28.0" x="1070.0" y="257.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="End_NoMatches" id="BPMNShape_End_NoMatches">
+        <omgdc:Bounds height="28.0" width="28.0" x="918.0" y="690.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Search_ICARE_Outcome" id="BPMNShape_Search_ICARE_Outcome">
+        <omgdc:Bounds height="40.0" width="40.0" x="914.0" y="580.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="End_ResultsFound_ICARE" id="BPMNShape_End_ResultsFound_ICARE">
+        <omgdc:Bounds height="28.0" width="28.0" x="1090.0" y="583.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="End_ResultsFound_CS_For_CP_And_Child" id="BPMNShape_End_ResultsFound_CS_For_CP_And_Child">
+        <omgdc:Bounds height="28.0" width="28.0" x="538.0" y="150.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-FBCB6501-B138-4A2C-88FA-91F41A413F17" id="BPMNShape_sid-FBCB6501-B138-4A2C-88FA-91F41A413F17">
+        <omgdc:Bounds height="79.99999999999997" width="99.99999999999999" x="120.00000000000001" y="231.00000000000003"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-15146846-B6E3-4372-AB66-15CDBB22672B" id="BPMNShape_sid-15146846-B6E3-4372-AB66-15CDBB22672B">
+        <omgdc:Bounds height="40.00000000000003" width="40.0" x="270.0000000000002" y="251.00000000000009"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-A77A8230-52AD-4618-812A-51034182914F" id="BPMNShape_sid-A77A8230-52AD-4618-812A-51034182914F">
+        <omgdc:Bounds height="28.0" width="28.0" x="276.00000000000034" y="452.00000000000006"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="sid-AB8DCB2B-2C79-4AA8-949F-20B7393B1D71" id="BPMNEdge_sid-AB8DCB2B-2C79-4AA8-949F-20B7393B1D71">
+        <omgdi:waypoint x="309.4244604316549" y="271.57553956834545"/>
+        <omgdi:waypoint x="375.00000000000006" y="273.5185185185186"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-B41EA6CC-7D70-4C94-9FF9-80BE61DB59DB" id="BPMNEdge_sid-B41EA6CC-7D70-4C94-9FF9-80BE61DB59DB">
+        <omgdi:waypoint x="475.00000000000006" y="275.00000000000006"/>
+        <omgdi:waypoint x="535.0" y="275.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-65532E67-7AB7-460D-B6CD-09BC1F61C49E" id="BPMNEdge_sid-65532E67-7AB7-460D-B6CD-09BC1F61C49E">
+        <omgdi:waypoint x="934.6923076923077" y="510.0"/>
+        <omgdi:waypoint x="934.1526717557252" y="580.1526717557252"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Results_Found_With_100_Search_Criteria" id="BPMNEdge_Results_Found_With_100_Search_Criteria">
+        <omgdi:waypoint x="290.0000000000002" y="291.0000000000001"/>
+        <omgdi:waypoint x="290.00000000000034" y="452.00000000000006"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="NoMatches_In_IBES" id="BPMNEdge_NoMatches_In_IBES">
+        <omgdi:waypoint x="935.0" y="295.0"/>
+        <omgdi:waypoint x="935.0" y="430.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="NoMatches_In_CS" id="BPMNEdge_NoMatches_In_CS">
+        <omgdi:waypoint x="575.0" y="275.0"/>
+        <omgdi:waypoint x="705.0" y="275.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-8C0956A5-E656-4F46-AC15-9DC93DC4179D" id="BPMNEdge_sid-8C0956A5-E656-4F46-AC15-9DC93DC4179D">
+        <omgdi:waypoint x="805.0" y="275.0"/>
+        <omgdi:waypoint x="915.0" y="275.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="NoMatches_In_ICARE" id="BPMNEdge_NoMatches_In_ICARE">
+        <omgdi:waypoint x="933.622641509434" y="619.622641509434"/>
+        <omgdi:waypoint x="932.2691809992388" y="690.0025880395822"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Results_Found_In_IBES" id="BPMNEdge_Results_Found_In_IBES">
+        <omgdi:waypoint x="954.4771241830065" y="274.47712418300654"/>
+        <omgdi:waypoint x="1070.0050420926318" y="271.37570356798307"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-F7A5FC83-59A0-4044-BFD3-82307E66AFBA" id="BPMNEdge_sid-F7A5FC83-59A0-4044-BFD3-82307E66AFBA">
+        <omgdi:waypoint x="59.99232589321134" y="274.52024557141726"/>
+        <omgdi:waypoint x="120.00000000000001" y="272.6"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="NoMatches_In_CS_For_CP_And_Child" id="BPMNEdge_NoMatches_In_CS_For_CP_And_Child">
+        <omgdi:waypoint x="554.4736842105264" y="255.5263157894737"/>
+        <omgdi:waypoint x="552.3782402588708" y="177.99488957821995"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Results_Found_In_CS" id="BPMNEdge_Results_Found_In_CS">
+        <omgdi:waypoint x="554.6907216494845" y="294.69072164948454"/>
+        <omgdi:waypoint x="552.2198681684783" y="452.00172660688145"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-8F50DEFC-29CD-4A06-A26A-8D768394A609" id="BPMNEdge_sid-8F50DEFC-29CD-4A06-A26A-8D768394A609">
+        <omgdi:waypoint x="220.0" y="271.00000000000006"/>
+        <omgdi:waypoint x="270.0000000000002" y="271.0000000000001"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Results_Found_In_ICARE" id="BPMNEdge_Results_Found_In_ICARE">
+        <omgdi:waypoint x="953.6531791907514" y="599.6531791907514"/>
+        <omgdi:waypoint x="1090.0021794217746" y="597.2470203631451"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
