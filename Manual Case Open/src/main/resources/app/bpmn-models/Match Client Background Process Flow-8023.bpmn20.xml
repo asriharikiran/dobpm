@@ -1,0 +1,276 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:activiti="http://activiti.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="http://dhw.id.state.us/processdef/background" xmlns:modeler="http://activiti.com/modeler" modeler:version="1.0en" modeler:exportDateTime="20190603223105430" modeler:modelId="8023" modeler:modelVersion="1" modeler:modelLastUpdated="1559145790719">
+  <process id="ClientMatchBackgroundProcessFlow" name="Match Client Background Process Flow" isExecutable="true">
+    <documentation>Process that does not generate assignable tasks to match client from an external referral source (IBES, CSNET, FACS, etc) to the Hub and Child Support application.  Purpose: To prevent creation of duplicate clients.</documentation>
+    <startEvent id="StartClientMatch" name="Start Client Match">
+      <documentation>Receive data from Interface source (IBES, FACS, CSNET) and begin Matching Clients included in the referral.</documentation>
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[StartClientMatch]]></modeler:editor-resource-id>
+      </extensionElements>
+    </startEvent>
+    <callActivity id="clientRecoveryFlow" name="Client Recovery Flow" calledElement="BasicErrorFlow" activiti:inheritVariables="false">
+      <extensionElements>
+        <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+        <activiti:in source="STAGE_ID" target="STAGE_ID"/>
+        <modeler:editor-resource-id><![CDATA[clientRecoveryFlow]]></modeler:editor-resource-id>
+      </extensionElements>
+    </callActivity>
+    <sequenceFlow id="sid-24F74B68-391B-4144-8204-CA129BEF204A" sourceRef="sid-221CC303-10A8-40C6-A2A4-4215A69CFA53" targetRef="clientRecoveryFlow">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-24F74B68-391B-4144-8204-CA129BEF204A]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <endEvent id="errorendevent1" name="ErrorEnd">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[errorendevent1]]></modeler:editor-resource-id>
+      </extensionElements>
+      <errorEventDefinition/>
+    </endEvent>
+    <sequenceFlow id="flow1" sourceRef="clientRecoveryFlow" targetRef="errorendevent1">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[flow1]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <endEvent id="sid-7E2BCD1E-74F7-4624-9BC0-F27D4719794C">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-7E2BCD1E-74F7-4624-9BC0-F27D4719794C]]></modeler:editor-resource-id>
+      </extensionElements>
+    </endEvent>
+    <sequenceFlow id="sid-A6501FBA-C612-4328-A294-A4C78829E17C" sourceRef="ClientMatchBG" targetRef="sid-7E2BCD1E-74F7-4624-9BC0-F27D4719794C">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-A6501FBA-C612-4328-A294-A4C78829E17C]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="sid-F7A16674-EBB5-47FE-8A71-36B926CF8587" sourceRef="StartClientMatch" targetRef="ClientMatchBG">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-F7A16674-EBB5-47FE-8A71-36B926CF8587]]></modeler:editor-resource-id>
+      </extensionElements>
+    </sequenceFlow>
+    <transaction id="ClientMatchBG" name="Client Match BG">
+      <documentation>Match Client.  To match the client passed to a known person in Child Support / Hub.</documentation>
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[ClientMatchBG]]></modeler:editor-resource-id>
+      </extensionElements>
+      <callActivity id="MatchClient" name="Match Client" calledElement="CommonClientMatchProcessFlow" activiti:inheritVariables="false">
+        <documentation>Look for client in different systems (CS, IBES and ICARE), return Client Found, if not client found, continue flow. 
+
+If Match returns more than 1 result, then present resolution task to user. 
+If Match returns 1 result, then consider match and move to next step in flow. 
+If 0 match returned, then No match found, move to next step in flow.</documentation>
+        <extensionElements>
+          <activiti:in source="JSON_PAYLOAD" target="JSON_PAYLOAD"/>
+          <activiti:in source="PERSON_TYPE" target="PERSON_TYPE"/>
+          <activiti:in sourceExpression="${&quot;o&quot;.indexOf(&quot;o&quot;)}" target="CHILD_INDEX"/>
+          <activiti:in sourceExpression="true" target="NON_REFERRAL_BASED"/>
+          <activiti:in source="STARTED_BY" target="STARTED_BY"/>
+          <activiti:in source="SOURCE" target="SOURCE"/>
+          <activiti:in source="STAGE_ID" target="STAGE_ID"/>
+          <activiti:out source="CLIENT_MATCH_OUTCOME" target="CP_CLIENT_MATCH"/>
+          <activiti:out source="JSON_MATCH_RESULTS_PAYLOAD" target="JSON_MATCH_RESULTS_PAYLOAD"/>
+          <modeler:editor-resource-id><![CDATA[MatchClient]]></modeler:editor-resource-id>
+        </extensionElements>
+      </callActivity>
+      <exclusiveGateway id="CP_CINFound" name="CP CIN MatchFound?">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[CP_CINFound]]></modeler:editor-resource-id>
+        </extensionElements>
+      </exclusiveGateway>
+      <userTask id="BG_ResolveCPTask" name="Resolve Applicant" activiti:assignee="$INITIATOR">
+        <documentation>Will display if more than one match is found as an outcome of the Client Search 
+mvn
+Task must include the Client(s) found during the match. 
+Details to include for all potential matches: FName, MName, LName, DOB, CIN, SSN
+
+ Users will:
+- select a presented Client OR
+- Create New Client</documentation>
+        <extensionElements>
+          <activiti:taskListener event="create" expression="#{coClientService.setResolutionTask(task, PERSON_TYPE, referralPropExtractor.getAttributeValue(JSON_PAYLOAD, &quot;/clientAR/personDetails/id&quot;))}"/>
+          <activiti:taskListener event="create" delegateExpression="${lastCompletedAssigner}"/>
+          <modeler:allow-send-email><![CDATA[true]]></modeler:allow-send-email>
+          <modeler:activiti-idm-initiator><![CDATA[true]]></modeler:activiti-idm-initiator>
+          <modeler:initiator-can-complete><![CDATA[false]]></modeler:initiator-can-complete>
+          <modeler:editor-resource-id><![CDATA[BG_ResolveCPTask]]></modeler:editor-resource-id>
+        </extensionElements>
+      </userTask>
+      <startEvent id="StartClientMatchTransaction" name="Start Client Match">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[StartClientMatchTransaction]]></modeler:editor-resource-id>
+        </extensionElements>
+      </startEvent>
+      <endEvent id="Resolve_Client_BG_End" name="Resolve Client End Event">
+        <documentation>Means that the bg process is no longer needed for matching purposes</documentation>
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[Resolve_Client_BG_End]]></modeler:editor-resource-id>
+        </extensionElements>
+        <terminateEventDefinition/>
+      </endEvent>
+      <boundaryEvent id="sid-1BB05D42-1523-424A-8800-B3E73DAB2A3B" attachedToRef="BG_ResolveCPTask" cancelActivity="true">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-1BB05D42-1523-424A-8800-B3E73DAB2A3B]]></modeler:editor-resource-id>
+        </extensionElements>
+        <timerEventDefinition>
+          <timeDuration>PT5M</timeDuration>
+        </timerEventDefinition>
+      </boundaryEvent>
+      <sequenceFlow id="sid-668D2C54-E20C-4286-B7E6-49B4F00D4CB2" sourceRef="BG_ResolveCPTask" targetRef="Resolve_Client_BG_End">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-668D2C54-E20C-4286-B7E6-49B4F00D4CB2]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-5B7ABAF5-C897-4B72-AC47-CF2BE6DA592F" name="R= Resolution  Required" sourceRef="CP_CINFound" targetRef="BG_ResolveCPTask">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-5B7ABAF5-C897-4B72-AC47-CF2BE6DA592F]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"R".equalsIgnoreCase(CP_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-244F128F-D0D2-438C-9335-928903286AAA" sourceRef="sid-1BB05D42-1523-424A-8800-B3E73DAB2A3B" targetRef="Resolve_Client_BG_End">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-244F128F-D0D2-438C-9335-928903286AAA]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-185F31F8-BBA4-47C7-A622-1A46722DF352" sourceRef="StartClientMatchTransaction" targetRef="MatchClient">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-185F31F8-BBA4-47C7-A622-1A46722DF352]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <sequenceFlow id="sid-786ECBAF-3B21-4145-8EE8-52BE35AFA417" name="1= 1 Match  Found in CS" sourceRef="CP_CINFound" targetRef="BG_ResolveCPTask">
+        <extensionElements>
+          <activiti:executionListener event="take" expression="#{coClientService.setPotentialMatchCin(execution, &quot;CP&quot;)}"/>
+          <modeler:editor-resource-id><![CDATA[sid-786ECBAF-3B21-4145-8EE8-52BE35AFA417]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"1".equalsIgnoreCase(CP_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-6831FD87-67D2-45E3-919C-5DDA81DC1B1C" name="0=No match  found" sourceRef="CP_CINFound" targetRef="Resolve_Client_BG_End">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-6831FD87-67D2-45E3-919C-5DDA81DC1B1C]]></modeler:editor-resource-id>
+        </extensionElements>
+        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${"0".equalsIgnoreCase(CP_CLIENT_MATCH)}]]></conditionExpression>
+      </sequenceFlow>
+      <sequenceFlow id="sid-A1090AD0-2810-489B-AD87-B2418453A1EF" sourceRef="MatchClient" targetRef="CP_CINFound">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-A1090AD0-2810-489B-AD87-B2418453A1EF]]></modeler:editor-resource-id>
+        </extensionElements>
+      </sequenceFlow>
+      <textAnnotation id="sid-9A1E2C96-E975-4396-A992-BD30A65CCBDF">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-9A1E2C96-E975-4396-A992-BD30A65CCBDF]]></modeler:editor-resource-id>
+        </extensionElements>
+        <text>Pull back all known 'person' data elements from payload to Create Person</text>
+      </textAnnotation>
+      <textAnnotation id="sid-F44EFD36-498F-4786-B39E-F7455E4442EA">
+        <extensionElements>
+          <modeler:editor-resource-id><![CDATA[sid-F44EFD36-498F-4786-B39E-F7455E4442EA]]></modeler:editor-resource-id>
+        </extensionElements>
+        <text>Nexi User can:
+-Select a Presented Client from CS
+-Search Nexi &amp; Select Client, OR
+Select to Create New CS Client  (using IBES Data)</text>
+      </textAnnotation>
+    </transaction>
+    <boundaryEvent id="sid-221CC303-10A8-40C6-A2A4-4215A69CFA53" attachedToRef="ClientMatchBG">
+      <extensionElements>
+        <modeler:editor-resource-id><![CDATA[sid-221CC303-10A8-40C6-A2A4-4215A69CFA53]]></modeler:editor-resource-id>
+      </extensionElements>
+      <errorEventDefinition/>
+    </boundaryEvent>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_ClientMatchBackgroundProcessFlow">
+    <bpmndi:BPMNPlane bpmnElement="ClientMatchBackgroundProcessFlow" id="BPMNPlane_ClientMatchBackgroundProcessFlow">
+      <bpmndi:BPMNShape bpmnElement="StartClientMatch" id="BPMNShape_StartClientMatch">
+        <omgdc:Bounds height="30.0" width="30.0" x="30.0" y="634.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="clientRecoveryFlow" id="BPMNShape_clientRecoveryFlow">
+        <omgdc:Bounds height="80.0" width="100.0" x="450.0" y="1080.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="errorendevent1" id="BPMNShape_errorendevent1">
+        <omgdc:Bounds height="28.0" width="28.0" x="339.0" y="1100.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-7E2BCD1E-74F7-4624-9BC0-F27D4719794C" id="BPMNShape_sid-7E2BCD1E-74F7-4624-9BC0-F27D4719794C">
+        <omgdc:Bounds height="28.0" width="28.0" x="1245.0" y="635.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="ClientMatchBG" id="BPMNShape_ClientMatchBG">
+        <omgdc:Bounds height="668.0" width="1110.0" x="90.0" y="315.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="MatchClient" id="BPMNShape_MatchClient">
+        <omgdc:Bounds height="80.0" width="100.0" x="120.0" y="405.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="CP_CINFound" id="BPMNShape_CP_CINFound">
+        <omgdc:Bounds height="40.0" width="40.0" x="300.0" y="437.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="BG_ResolveCPTask" id="BPMNShape_BG_ResolveCPTask">
+        <omgdc:Bounds height="80.0" width="100.0" x="487.0" y="417.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="StartClientMatchTransaction" id="BPMNShape_StartClientMatchTransaction">
+        <omgdc:Bounds height="30.0" width="30.0" x="167.0" y="354.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Resolve_Client_BG_End" id="BPMNShape_Resolve_Client_BG_End">
+        <omgdc:Bounds height="28.0" width="28.0" x="720.0" y="442.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-1BB05D42-1523-424A-8800-B3E73DAB2A3B" id="BPMNShape_sid-1BB05D42-1523-424A-8800-B3E73DAB2A3B">
+        <omgdc:Bounds height="31.0" width="31.0" x="483.0681044023894" y="481.60284758011545"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-9A1E2C96-E975-4396-A992-BD30A65CCBDF" id="BPMNShape_sid-9A1E2C96-E975-4396-A992-BD30A65CCBDF">
+        <omgdc:Bounds height="56.0" width="146.0" x="464.0" y="720.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-F44EFD36-498F-4786-B39E-F7455E4442EA" id="BPMNShape_sid-F44EFD36-498F-4786-B39E-F7455E4442EA">
+        <omgdc:Bounds height="126.0" width="222.0" x="330.0" y="491.0"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="sid-221CC303-10A8-40C6-A2A4-4215A69CFA53" id="BPMNShape_sid-221CC303-10A8-40C6-A2A4-4215A69CFA53">
+        <omgdc:Bounds height="30.0" width="30.0" x="593.0879284973826" y="968.736867599079"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="sid-F7A16674-EBB5-47FE-8A71-36B926CF8587" id="BPMNEdge_sid-F7A16674-EBB5-47FE-8A71-36B926CF8587">
+        <omgdi:waypoint x="60.0" y="649.0"/>
+        <omgdi:waypoint x="90.0" y="649.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-5B7ABAF5-C897-4B72-AC47-CF2BE6DA592F" id="BPMNEdge_sid-5B7ABAF5-C897-4B72-AC47-CF2BE6DA592F">
+        <omgdi:waypoint x="340.0" y="457.0"/>
+        <omgdi:waypoint x="487.0" y="457.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-24F74B68-391B-4144-8204-CA129BEF204A" id="BPMNEdge_sid-24F74B68-391B-4144-8204-CA129BEF204A">
+        <omgdi:waypoint x="612.2067634892483" y="998.1602929311484"/>
+        <omgdi:waypoint x="647.0" y="1120.0"/>
+        <omgdi:waypoint x="550.0" y="1120.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow1" id="BPMNEdge_flow1">
+        <omgdi:waypoint x="450.0" y="1117.9591836734694"/>
+        <omgdi:waypoint x="366.9883527434081" y="1114.5709531732002"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-185F31F8-BBA4-47C7-A622-1A46722DF352" id="BPMNEdge_sid-185F31F8-BBA4-47C7-A622-1A46722DF352">
+        <omgdi:waypoint x="179.66056139790481" y="383.816444479936"/>
+        <omgdi:waypoint x="176.31578947368422" y="405.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-786ECBAF-3B21-4145-8EE8-52BE35AFA417" id="BPMNEdge_sid-786ECBAF-3B21-4145-8EE8-52BE35AFA417">
+        <omgdi:waypoint x="320.0" y="437.0"/>
+        <omgdi:waypoint x="320.0" y="369.0"/>
+        <omgdi:waypoint x="536.0" y="369.0"/>
+        <omgdi:waypoint x="536.5454545454545" y="417.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-6831FD87-67D2-45E3-919C-5DDA81DC1B1C" id="BPMNEdge_sid-6831FD87-67D2-45E3-919C-5DDA81DC1B1C">
+        <omgdi:waypoint x="320.0" y="477.0"/>
+        <omgdi:waypoint x="320.0" y="683.0"/>
+        <omgdi:waypoint x="730.0" y="683.0"/>
+        <omgdi:waypoint x="733.7533422559878" y="469.99782697268824"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-A1090AD0-2810-489B-AD87-B2418453A1EF" id="BPMNEdge_sid-A1090AD0-2810-489B-AD87-B2418453A1EF">
+        <omgdi:waypoint x="220.0" y="445.0"/>
+        <omgdi:waypoint x="260.0" y="445.0"/>
+        <omgdi:waypoint x="260.0" y="457.0"/>
+        <omgdi:waypoint x="300.0" y="457.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-A6501FBA-C612-4328-A294-A4C78829E17C" id="BPMNEdge_sid-A6501FBA-C612-4328-A294-A4C78829E17C">
+        <omgdi:waypoint x="1200.0" y="649.0"/>
+        <omgdi:waypoint x="1245.0" y="649.0"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-244F128F-D0D2-438C-9335-928903286AAA" id="BPMNEdge_sid-244F128F-D0D2-438C-9335-928903286AAA">
+        <omgdi:waypoint x="504.68189788553354" y="511.3461452757148"/>
+        <omgdi:waypoint x="529.0" y="568.0"/>
+        <omgdi:waypoint x="721.7140455987991" y="462.71232630699757"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="sid-668D2C54-E20C-4286-B7E6-49B4F00D4CB2" id="BPMNEdge_sid-668D2C54-E20C-4286-B7E6-49B4F00D4CB2">
+        <omgdi:waypoint x="587.0" y="456.74619289340103"/>
+        <omgdi:waypoint x="720.0001803670469" y="456.0710650742789"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
